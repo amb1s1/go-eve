@@ -6,7 +6,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"flag"
 	"log"
 
 	"golang.org/x/oauth2/google"
@@ -15,39 +15,39 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-func main() {
-	ctx := context.Background()
+var (
+	projectID    = flag.String("project", "", "name of your project")
+	instanceName = flag.String("instance_name", "", "name of your compute instance")
+	zone         = flag.String("zone", "us-central1-a", "default to us-central1-a zone")
+)
+
+func initService(ctx context.Context) (*compute.Service, error) {
 	client, err := google.DefaultClient(ctx, compute.ComputeScope)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 	service, err := compute.New(client)
 	if err != nil {
-		log.Fatalf("Unable to create Compute service: %v", err)
+		return nil, err
 	}
+	return service, err
+}
 
-	projectID := "amb1s1"
-	instanceName := "ubuntu"
-
-	prefix := "https://www.googleapis.com/compute/v1/projects/" + projectID
+func contructInstanceRequest() *compute.Instance {
+	prefix := "https://www.googleapis.com/compute/v1/projects/" + *projectID
 	imageURL := "https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2104-hirsute-v20210909"
-	zone := "us-central1-a"
 
-	// Show the current images that are available.
-	res, err := service.Images.List(projectID).Do()
-	log.Printf("Got compute.Images.List, err: %#v, %v", res, err)
-
-	instance := &compute.Instance{
-		Name:        instanceName,
+	return &compute.Instance{
+		Name:        *instanceName,
 		Description: "compute sample instance",
-		MachineType: prefix + "/zones/" + zone + "/machineTypes/n1-standard-1",
+		MachineType: prefix + "/zones/" + *zone + "/machineTypes/n1-standard-1",
 		Disks: []*compute.AttachedDisk{
 			{
 				AutoDelete: true,
 				Boot:       true,
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
-					DiskName:    "my-root-pd",
+					DiskName:    "my-root-" + *instanceName,
 					SourceImage: imageURL,
 				},
 			},
@@ -74,16 +74,44 @@ func main() {
 		},
 	}
 
-	op, err := service.Instances.Insert(projectID, zone, instance).Do()
+}
+
+func isInstanceExists(service *compute.Service) bool {
+	found, _ := service.Instances.Get(*projectID, *zone, *instanceName).Do()
+	if found != nil {
+		return true
+	}
+	return false
+
+}
+func createInstance(ctx context.Context, service *compute.Service) {
+	instanceRequest := contructInstanceRequest()
+	op, err := service.Instances.Insert(*projectID, *zone, instanceRequest).Do()
 	log.Printf("Got compute.Operation, err: %#v, %v", op, err)
 	etag := op.Header.Get("Etag")
 	log.Printf("Etag=%v", etag)
 
-	inst, err := service.Instances.Get(projectID, zone, instanceName).IfNoneMatch(etag).Do()
+	inst, err := service.Instances.Get(*projectID, *zone, *instanceName).IfNoneMatch(etag).Do()
 	log.Printf("Got compute.Instance, err: %#v, %v", inst, err)
 	if googleapi.IsNotModified(err) {
 		log.Printf("Instance not modified since insert.")
 	} else {
 		log.Printf("Instance modified since insert.")
 	}
+}
+
+func main() {
+	flag.Parse()
+	ctx := context.Background()
+	service, err := initService(ctx)
+	if err != nil {
+		log.Fatalf("Not able to create a compute service, error: %v", err)
+	}
+
+	exists := isInstanceExists(service)
+	if exists {
+		log.Fatalf("Instance %v already exists", *instanceName)
+	}
+	createInstance(ctx, service)
+
 }
