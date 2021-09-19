@@ -7,8 +7,10 @@ package main
 import (
 	"context"
 	"flag"
+	"io/ioutil"
 	"log"
 
+	"github.com/golang/protobuf/proto"
 	"golang.org/x/oauth2/google"
 
 	compute "google.golang.org/api/compute/v1"
@@ -16,9 +18,11 @@ import (
 )
 
 var (
-	projectID    = flag.String("project", "", "name of your project")
-	instanceName = flag.String("instance_name", "", "name of your compute instance")
-	zone         = flag.String("zone", "us-central1-a", "default to us-central1-a zone")
+	projectID      = flag.String("project", "", "name of your project")
+	instanceName   = flag.String("instance_name", "", "name of your compute instance")
+	zone           = flag.String("zone", "us-central1-a", "default to us-central1-a zone")
+	sshKeyFileName = flag.String("ssh_key_file_name", "", "path to the file containing your ssh public key.")
+	sshKeyUsername = flag.String("ssh_key_username", "", "use the username from your ssh public key. If appear on your ssh public key file. If not do not use this flag. E.g user@domain.")
 )
 
 func initService(ctx context.Context) (*compute.Service, error) {
@@ -36,8 +40,12 @@ func initService(ctx context.Context) (*compute.Service, error) {
 func contructInstanceRequest() *compute.Instance {
 	prefix := "https://www.googleapis.com/compute/v1/projects/" + *projectID
 	imageURL := "https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2104-hirsute-v20210909"
+	sshKey, err := getLocalSSHKey(*sshKeyFileName)
+	if err != nil {
+		log.Printf("could not get your ssh public key from file name: %v", *sshKeyFileName)
+	}
 
-	return &compute.Instance{
+	instance := &compute.Instance{
 		Name:        *instanceName,
 		Description: "compute sample instance",
 		MachineType: prefix + "/zones/" + *zone + "/machineTypes/n1-standard-1",
@@ -72,7 +80,17 @@ func contructInstanceRequest() *compute.Instance {
 				},
 			},
 		},
+		Metadata: &compute.Metadata{
+			Kind: "compute#metadata",
+			Items: []*compute.MetadataItems{
+				{
+					Key:   "ssh-keys",
+					Value: proto.String(sshKey),
+				},
+			},
+		},
 	}
+	return instance
 
 }
 
@@ -98,6 +116,14 @@ func createInstance(ctx context.Context, service *compute.Service) {
 	} else {
 		log.Printf("Instance modified since insert.")
 	}
+}
+
+func getLocalSSHKey(f string) (string, error) {
+	body, err := ioutil.ReadFile(*sshKeyFileName)
+	if err != nil {
+		return "", err
+	}
+	return *sshKeyUsername + ":" + string(body), nil
 }
 
 func main() {
