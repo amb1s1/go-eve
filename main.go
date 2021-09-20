@@ -18,11 +18,13 @@ import (
 )
 
 var (
-	projectID      = flag.String("project", "", "name of your project")
-	instanceName   = flag.String("instance_name", "", "name of your compute instance")
-	zone           = flag.String("zone", "us-central1-a", "default to us-central1-a zone")
-	sshKeyFileName = flag.String("ssh_key_file_name", "", "path to the file containing your ssh public key.")
-	sshKeyUsername = flag.String("ssh_key_username", "", "use the username from your ssh public key. If appear on your ssh public key file. If not do not use this flag. E.g user@domain.")
+	projectID              = flag.String("project", "", "name of your project")
+	instanceName           = flag.String("instance_name", "", "name of your compute instance")
+	zone                   = flag.String("zone", "us-central1-a", "default to us-central1-a zone")
+	sshKeyFileName         = flag.String("ssh_key_file_name", "", "path to the file containing your ssh public key.")
+	sshKeyUsername         = flag.String("ssh_key_username", "", "use the username from your ssh public key. If appear on your ssh public key file. If not do not use this flag. E.g user@domain.")
+	createCustomEveNGImage = flag.Bool("create_custom_eve_ng_image", false, "Create a custom eve-ng image if not already created")
+	customEveNGImageName   = flag.String("custom_eve_ng_image_name", "eve-ng", "Create a custom eve-ng image if not already created. Default is eve-ng")
 )
 
 func initService(ctx context.Context) (*compute.Service, error) {
@@ -105,16 +107,35 @@ func isInstanceExists(service *compute.Service) bool {
 func createInstance(ctx context.Context, service *compute.Service) {
 	instanceRequest := contructInstanceRequest()
 	op, err := service.Instances.Insert(*projectID, *zone, instanceRequest).Do()
-	log.Printf("Got compute.Operation, err: %#v, %v", op, err)
+	if err != nil {
+		log.Printf("Got compute.Operation, err: %#v, %v", op, err)
+	}
 	etag := op.Header.Get("Etag")
 	log.Printf("Etag=%v", etag)
 
 	inst, err := service.Instances.Get(*projectID, *zone, *instanceName).IfNoneMatch(etag).Do()
-	log.Printf("Got compute.Instance, err: %#v, %v", inst, err)
+	if err != nil {
+		log.Printf("Got compute.Instance, err: %#v, %v", inst, err)
+	}
 	if googleapi.IsNotModified(err) {
 		log.Printf("Instance not modified since insert.")
 	} else {
 		log.Printf("Instance modified since insert.")
+	}
+}
+
+func createEveNGImage(s *compute.Service) {
+	image := &compute.Image{
+		Name: *customEveNGImageName,
+		Licenses: []string{
+			"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
+		},
+		SourceDisk: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
+		DiskSizeGb: 10,
+	}
+	_, err := s.Images.Insert(*projectID, image).Do()
+	if err != nil {
+		log.Fatalf("failed to create a new image error: %v", err)
 	}
 }
 
@@ -132,6 +153,9 @@ func main() {
 	service, err := initService(ctx)
 	if err != nil {
 		log.Fatalf("Not able to create a compute service, error: %v", err)
+	}
+	if *createCustomEveNGImage {
+		createEveNGImage((service))
 	}
 
 	exists := isInstanceExists(service)
