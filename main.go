@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -46,6 +47,36 @@ func initService(ctx context.Context) (*compute.Service, error) {
 	return service, err
 }
 
+func cronstructFirewallRules(service *compute.Service, direction string) *compute.Firewall {
+	rule := &compute.Firewall{
+		Kind:      "compute#firewall",
+		Name:      strings.ToLower(direction) + "-eve",
+		SelfLink:  "projects/amb1s1/global/firewalls/" + strings.ToLower(direction) + "-eve",
+		Network:   "projects/amb1s1/global/networks/default",
+		Direction: strings.ToUpper(direction),
+		Priority:  1000,
+		TargetTags: []string{
+			"eve-ng",
+		},
+		Allowed: []*compute.FirewallAllowed{
+			{
+				IPProtocol: "tcp",
+				Ports: []string{
+					"0-65535",
+				},
+			},
+		},
+	}
+
+	if strings.ToUpper(direction) != "INGRESS" {
+		rule.DestinationRanges = append(rule.DestinationRanges, "0.0.0.0/0")
+		return rule
+	}
+	rule.SourceRanges = append(rule.SourceRanges, "0.0.0.0/0")
+
+	return rule
+}
+
 func contructInstanceRequest() *compute.Instance {
 	prefix := "https://www.googleapis.com/compute/v1/projects/" + *projectID
 	sshKey := readSSHKey()
@@ -60,6 +91,7 @@ func contructInstanceRequest() *compute.Instance {
 			Items: []string{
 				"http-server",
 				"https-server",
+				"eve-ng",
 			},
 		},
 		Disks: []*compute.AttachedDisk{
@@ -131,6 +163,27 @@ func natIPLookup(service *compute.Service) (net.Addr, error) {
 	return nil, nil
 }
 
+func createFirewallRule(service *compute.Service, direction string) error {
+	firewallRequest := cronstructFirewallRules(service, direction)
+	op, err := service.Firewalls.Insert(*projectID, firewallRequest).Do()
+	if err != nil {
+		return err
+	}
+	log.Println(op.Description)
+	return nil
+
+}
+
+func createFirewallRules(service *compute.Service) error {
+	for _, d := range []string{"INGRESS", "EGRESS"} {
+		err := createFirewallRule(service, d)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
 func createInstance(ctx context.Context, service *compute.Service) {
 	instanceRequest := contructInstanceRequest()
 	op, err := service.Instances.Insert(*projectID, *zone, instanceRequest).Do()
@@ -202,7 +255,7 @@ func fetchScript(client *goph.Client) error {
 
 func runRemoteScript(client *goph.Client, f string) error {
 	// Execute your command.
-	log.Println("runnning script...")
+	log.Printf("runnning script on file %v ...", f)
 	out, err := client.Run("chmod +x /home/" + *sshKeyUsername + "/" + f)
 	if err != nil {
 		return err
@@ -229,6 +282,7 @@ func reboot(client *goph.Client) error {
 
 func initialSetup(service *compute.Service, natIP net.Addr) error {
 	for _, f := range bashFiles {
+		log.Printf("fetching file %v to remote server %v", f, natIP.String())
 		client := sshToServer(natIP)
 		defer client.Close()
 		err := fetchScript(client)
@@ -272,5 +326,9 @@ func main() {
 	}
 	if err != nil {
 		log.Println(err)
+	}
+	err = createFirewallRules(service)
+	if err != nil {
+		log.Fatalf("could not be able to create firewall rules, error: %v", err)
 	}
 }
