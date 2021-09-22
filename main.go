@@ -30,6 +30,8 @@ var (
 	sshKeyUsername         = flag.String("ssh_key_username", "", "use the username from your ssh public key. If appear on your ssh public key file. If not do not use this flag. E.g user@domain.")
 	createCustomEveNGImage = flag.Bool("create_custom_eve_ng_image", false, "Create a custom eve-ng image if not already created")
 	customEveNGImageName   = flag.String("custom_eve_ng_image_name", "eve-ng", "Create a custom eve-ng image if not already created. Default is eve-ng")
+
+	bashFiles = []string{"install.sh", "eve-initial-setup.sh"}
 )
 
 func initService(ctx context.Context) (*compute.Service, error) {
@@ -116,7 +118,7 @@ func isInstanceExists(service *compute.Service) bool {
 }
 
 func natIPLookup(service *compute.Service) (net.Addr, error) {
-	time.Sleep(30 * time.Second)
+	time.Sleep(60 * time.Second)
 	log.Println("looking for the instance NatIP")
 	found, _ := service.Instances.Get(*projectID, *zone, *instanceName).Do()
 	for _, i := range found.NetworkInterfaces {
@@ -189,17 +191,30 @@ func sshToServer(natIP net.Addr) *goph.Client {
 
 func fetchScript(client *goph.Client) error {
 	dir, _ := os.Getwd()
-	return client.Upload(dir+"/install.sh", "/home/"+*sshKeyUsername+"/install.sh")
+	for _, f := range bashFiles {
+		err := client.Upload(dir+"/"+f, "/home/"+*sshKeyUsername+"/"+f)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func runRemoteScript(client *goph.Client) error {
+func runRemoteScript(client *goph.Client, f string) error {
 	// Execute your command.
 	log.Println("runnning script...")
-	out, err := client.Run("chmod +x /home/" + *sshKeyUsername + "/install.sh")
+	out, err := client.Run("chmod +x /home/" + *sshKeyUsername + "/" + f)
+	if err != nil {
+		return err
+	}
 	log.Println(string(out))
-	out, err = client.Run("sudo /home/" + *sshKeyUsername + "/install.sh")
+	out, err = client.Run("sudo /home/" + *sshKeyUsername + "/" + f)
+	if err != nil {
+		return err
+	}
 	log.Println(string(out))
-	return err
+
+	return nil
 }
 
 func reboot(client *goph.Client) error {
@@ -208,6 +223,24 @@ func reboot(client *goph.Client) error {
 	log.Printf("Reboot Out: %v", string(out))
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func initialSetup(service *compute.Service, natIP net.Addr) error {
+	for _, f := range bashFiles {
+		client := sshToServer(natIP)
+		defer client.Close()
+		err := fetchScript(client)
+		if err != nil {
+			log.Println(err)
+		}
+		err = runRemoteScript(client, f)
+		if err != nil {
+			return err
+		}
+		reboot(client)
+		time.Sleep(60 * time.Second)
 	}
 	return nil
 }
@@ -233,18 +266,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not get instance external ip, error: %v", err)
 	}
-
-	client := sshToServer(natIP)
-	defer client.Close()
-	err = fetchScript(client)
+	err = initialSetup(service, natIP)
 	if err != nil {
 		log.Println(err)
 	}
-	err = runRemoteScript(client)
-	if err != nil {
-		log.Println(err)
-	}
-	err = reboot(client)
 	if err != nil {
 		log.Println(err)
 	}
