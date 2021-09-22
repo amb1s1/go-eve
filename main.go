@@ -193,11 +193,22 @@ func fetchScript(client *goph.Client) error {
 
 func runRemoteScript(client *goph.Client) error {
 	// Execute your command.
+	log.Println("runnning script...")
 	out, err := client.Run("chmod +x /home/" + *sshKeyUsername + "/install.sh")
 	log.Println(string(out))
 	out, err = client.Run("sudo /home/" + *sshKeyUsername + "/install.sh")
 	log.Println(string(out))
 	return err
+}
+
+func reboot(client *goph.Client) error {
+	log.Println("rebooting....")
+	out, err := client.Run("reboot -f")
+	log.Printf("Reboot Out: %v", string(out))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {
@@ -229,6 +240,10 @@ func main() {
 		log.Println(err)
 	}
 	err = runRemoteScript(client)
+	if err != nil {
+		log.Println(err)
+	}
+	err = reboot(client)
 	if err != nil {
 		log.Println(err)
 	}
