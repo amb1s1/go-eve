@@ -49,10 +49,11 @@ func contructInstanceRequest() *compute.Instance {
 	sshKey := readSSHKey()
 
 	instance := &compute.Instance{
-		Name:         *instanceName,
-		Description:  "compute sample instance",
-		MachineType:  prefix + "/zones/" + *zone + "/machineTypes/e2-standard-4",
-		CanIpForward: true,
+		Name:           *instanceName,
+		Description:    "compute sample instance",
+		MinCpuPlatform: "Intel Cascade Lake",
+		MachineType:    prefix + "/zones/" + *zone + "/machineTypes/c2-standard-4",
+		CanIpForward:   true,
 		Tags: &compute.Tags{
 			Items: []string{
 				"http-server",
@@ -115,7 +116,7 @@ func isInstanceExists(service *compute.Service) bool {
 }
 
 func natIPLookup(service *compute.Service) (net.Addr, error) {
-	time.Sleep(60 * time.Second)
+	time.Sleep(30 * time.Second)
 	log.Println("looking for the instance NatIP")
 	found, _ := service.Instances.Get(*projectID, *zone, *instanceName).Do()
 	for _, i := range found.NetworkInterfaces {
@@ -203,7 +204,7 @@ func runRemoteScript(client *goph.Client) error {
 
 func reboot(client *goph.Client) error {
 	log.Println("rebooting....")
-	out, err := client.Run("reboot -f")
+	out, err := client.Run("sudo reboot -f")
 	log.Printf("Reboot Out: %v", string(out))
 	if err != nil {
 		return err
