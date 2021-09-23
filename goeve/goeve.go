@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package goeve
 
 import (
 	"context"
-	"flag"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net"
@@ -23,17 +23,40 @@ import (
 )
 
 var (
-	projectID              = flag.String("project", "", "name of your project")
-	instanceName           = flag.String("instance_name", "", "name of your compute instance")
-	zone                   = flag.String("zone", "us-central1-a", "default to us-central1-a zone")
-	sshPublicKeyFileName   = flag.String("ssh_public_key_file_name", "", "path to the file containing your ssh public key.")
-	sshPrivateKeyFileName  = flag.String("ssh_private_key_file_name", "", "path to the file containing your ssh private key.")
-	sshKeyUsername         = flag.String("ssh_key_username", "", "use the username from your ssh public key. If appear on your ssh public key file. If not do not use this flag. E.g user@domain.")
-	createCustomEveNGImage = flag.Bool("create_custom_eve_ng_image", false, "Create a custom eve-ng image if not already created")
-	customEveNGImageName   = flag.String("custom_eve_ng_image_name", "eve-ng", "Create a custom eve-ng image if not already created. Default is eve-ng")
-
 	bashFiles = []string{"install.sh", "eve-initial-setup.sh"}
 )
+
+type Client struct {
+	projectID             string
+	instanceName          string
+	zone                  string
+	sshPublicKeyFileName  string
+	sshPrivateKeyFileName string
+	sshKeyUsername        string
+	customEveNGImageName  string
+	service               *compute.Service
+}
+
+func NewClient(ctx context.Context, projectID, instanceName, zone, sshPublicKeyFileName, sshPrivateKeyFileName, sshKeyUsername, customEveNGImageName string) (*Client, error) {
+	client := &Client{
+		projectID:             projectID,
+		instanceName:          instanceName,
+		zone:                  zone,
+		sshPublicKeyFileName:  sshPublicKeyFileName,
+		sshPrivateKeyFileName: sshPrivateKeyFileName,
+		sshKeyUsername:        sshKeyUsername,
+		customEveNGImageName:  customEveNGImageName,
+	}
+
+	service, err := initService(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	client.service = service
+
+	return client, nil
+}
 
 func initService(ctx context.Context) (*compute.Service, error) {
 	client, err := google.DefaultClient(ctx, compute.ComputeScope)
@@ -47,7 +70,7 @@ func initService(ctx context.Context) (*compute.Service, error) {
 	return service, err
 }
 
-func cronstructFirewallRules(service *compute.Service, direction string) *compute.Firewall {
+func cronstructFirewallRules(direction string) *compute.Firewall {
 	rule := &compute.Firewall{
 		Kind:      "compute#firewall",
 		Name:      strings.ToLower(direction) + "-eve",
@@ -77,15 +100,15 @@ func cronstructFirewallRules(service *compute.Service, direction string) *comput
 	return rule
 }
 
-func contructInstanceRequest() *compute.Instance {
-	prefix := "https://www.googleapis.com/compute/v1/projects/" + *projectID
-	sshKey := readSSHKey()
+func (c *Client) contructInstanceRequest() *compute.Instance {
+	prefix := "https://www.googleapis.com/compute/v1/projects/" + c.projectID
+	sshKey := c.readSSHKey()
 
 	instance := &compute.Instance{
-		Name:           *instanceName,
+		Name:           c.instanceName,
 		Description:    "compute sample instance",
 		MinCpuPlatform: "Intel Cascade Lake",
-		MachineType:    prefix + "/zones/" + *zone + "/machineTypes/c2-standard-4",
+		MachineType:    prefix + "/zones/" + c.zone + "/machineTypes/c2-standard-4",
 		CanIpForward:   true,
 		Tags: &compute.Tags{
 			Items: []string{
@@ -100,8 +123,8 @@ func contructInstanceRequest() *compute.Instance {
 				Boot:       true,
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
-					DiskName:    "my-root-" + *instanceName,
-					SourceImage: "projects/amb1s1/global/images/" + *customEveNGImageName,
+					DiskName:    "my-root-" + c.instanceName,
+					SourceImage: "projects/amb1s1/global/images/" + c.customEveNGImageName,
 					DiskType:    "projects/amb1s1/zones/us-central1-a/diskTypes/pd-ssd",
 				},
 			},
@@ -131,7 +154,7 @@ func contructInstanceRequest() *compute.Instance {
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "ssh-keys",
-					Value: proto.String(*sshKeyUsername + ":" + string(sshKey)),
+					Value: proto.String(c.sshKeyUsername + ":" + string(sshKey)),
 				},
 			},
 		},
@@ -140,8 +163,8 @@ func contructInstanceRequest() *compute.Instance {
 
 }
 
-func isInstanceExists(service *compute.Service) bool {
-	found, _ := service.Instances.Get(*projectID, *zone, *instanceName).Do()
+func (c *Client) isInstanceExists() bool {
+	found, _ := c.service.Instances.Get(c.projectID, c.zone, c.instanceName).Do()
 	if found != nil {
 		return true
 	}
@@ -149,10 +172,10 @@ func isInstanceExists(service *compute.Service) bool {
 
 }
 
-func natIPLookup(service *compute.Service) (net.Addr, error) {
+func (c *Client) NATIPLookup() (net.Addr, error) {
 	time.Sleep(60 * time.Second)
 	log.Println("looking for the instance NatIP")
-	found, _ := service.Instances.Get(*projectID, *zone, *instanceName).Do()
+	found, _ := c.service.Instances.Get(c.projectID, c.zone, c.instanceName).Do()
 	for _, i := range found.NetworkInterfaces {
 		nat, err := net.ResolveIPAddr("ip", i.AccessConfigs[len(i.AccessConfigs)-1].NatIP)
 		if err != nil {
@@ -163,9 +186,9 @@ func natIPLookup(service *compute.Service) (net.Addr, error) {
 	return nil, nil
 }
 
-func createFirewallRule(service *compute.Service, direction string) error {
-	firewallRequest := cronstructFirewallRules(service, direction)
-	op, err := service.Firewalls.Insert(*projectID, firewallRequest).Do()
+func (c *Client) createFirewallRule(direction string) error {
+	firewallRequest := cronstructFirewallRules(direction)
+	op, err := c.service.Firewalls.Insert(c.projectID, firewallRequest).Do()
 	if err != nil {
 		return err
 	}
@@ -174,9 +197,9 @@ func createFirewallRule(service *compute.Service, direction string) error {
 
 }
 
-func createFirewallRules(service *compute.Service) error {
+func (c *Client) CreateFirewallRules() error {
 	for _, d := range []string{"INGRESS", "EGRESS"} {
-		err := createFirewallRule(service, d)
+		err := c.createFirewallRule(d)
 		if err != nil {
 			return err
 		}
@@ -184,57 +207,61 @@ func createFirewallRules(service *compute.Service) error {
 	return nil
 
 }
-func createInstance(ctx context.Context, service *compute.Service) {
-	instanceRequest := contructInstanceRequest()
-	op, err := service.Instances.Insert(*projectID, *zone, instanceRequest).Do()
+func (c *Client) CreateInstance() error {
+	exists := c.isInstanceExists()
+	if exists {
+		return errors.New("Instance " + c.instanceName + " already exists.")
+	}
+	instanceRequest := c.contructInstanceRequest()
+	op, err := c.service.Instances.Insert(c.projectID, c.zone, instanceRequest).Do()
 	if err != nil {
-		log.Printf("Got compute.Operation, err: %#v, %v", op, err)
+		return err
 	}
 	etag := op.Header.Get("Etag")
-	inst, err := service.Instances.Get(*projectID, *zone, *instanceName).IfNoneMatch(etag).Do()
+	_, err = c.service.Instances.Get(c.projectID, c.zone, c.instanceName).IfNoneMatch(etag).Do()
 	if err != nil {
-		log.Printf("Got compute.Instance, err: %#v, %v", inst, err)
+		return err
 	}
 	if googleapi.IsNotModified(err) {
 		log.Printf("Instance not modified since insert.")
 	} else {
 		log.Printf("Instance modified since insert.")
 	}
-
+	return nil
 }
 
-func createEveNGImage(s *compute.Service) {
+func (c *Client) CreateEveNGImage() {
 	image := &compute.Image{
-		Name: *customEveNGImageName,
+		Name: c.customEveNGImageName,
 		Licenses: []string{
 			"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
 		},
 		SourceDisk: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
 		DiskSizeGb: 10,
 	}
-	_, err := s.Images.Insert(*projectID, image).Do()
+	_, err := c.service.Images.Insert(c.projectID, image).Do()
 	if err != nil {
 		log.Fatalf("failed to create a new image error: %v", err)
 	}
 }
 
-func readSSHKey() []byte {
-	body, err := ioutil.ReadFile(*sshPublicKeyFileName)
+func (c *Client) readSSHKey() []byte {
+	body, err := ioutil.ReadFile(c.sshPublicKeyFileName)
 	if err != nil {
 		log.Fatalf("could not read public ssh file, error: %v", err)
 	}
 	return body
 }
 
-func sshToServer(natIP net.Addr) *goph.Client {
+func (c *Client) sshToServer(natIP net.Addr) *goph.Client {
 	log.Printf("ssh to: %v", natIP)
 	// Start new ssh connection with private key.
-	priKey, err := goph.Key(*sshPrivateKeyFileName, "")
+	priKey, err := goph.Key(c.sshPrivateKeyFileName, "")
 	if err != nil {
 		log.Fatalf("could not get the ssh private key, error: %v", err)
 	}
 
-	client, err := goph.NewUnknown(*sshKeyUsername, natIP.String(), priKey)
+	client, err := goph.NewUnknown(c.sshKeyUsername, natIP.String(), priKey)
 	if err != nil {
 		log.Fatalf("could not create a new ssh client, error: %v", err)
 	}
@@ -242,10 +269,10 @@ func sshToServer(natIP net.Addr) *goph.Client {
 
 }
 
-func fetchScript(client *goph.Client) error {
+func (c *Client) fetchScript(client *goph.Client) error {
 	dir, _ := os.Getwd()
 	for _, f := range bashFiles {
-		err := client.Upload(dir+"/"+f, "/home/"+*sshKeyUsername+"/"+f)
+		err := client.Upload(dir+"/"+f, "/home/"+c.sshKeyUsername+"/"+f)
 		if err != nil {
 			return err
 		}
@@ -253,15 +280,15 @@ func fetchScript(client *goph.Client) error {
 	return nil
 }
 
-func runRemoteScript(client *goph.Client, f string) error {
+func (c *Client) runRemoteScript(client *goph.Client, f string) error {
 	// Execute your command.
 	log.Printf("runnning script on file %v ...", f)
-	out, err := client.Run("chmod +x /home/" + *sshKeyUsername + "/" + f)
+	out, err := client.Run("chmod +x /home/" + c.sshKeyUsername + "/" + f)
 	if err != nil {
 		return err
 	}
 	log.Println(string(out))
-	out, err = client.Run("sudo /home/" + *sshKeyUsername + "/" + f)
+	out, err = client.Run("sudo /home/" + c.sshKeyUsername + "/" + f)
 	if err != nil {
 		return err
 	}
@@ -280,16 +307,16 @@ func reboot(client *goph.Client) error {
 	return nil
 }
 
-func initialSetup(service *compute.Service, natIP net.Addr) error {
+func (c *Client) InitialSetup(natIP net.Addr) error {
 	for _, f := range bashFiles {
 		log.Printf("fetching file %v to remote server %v", f, natIP.String())
-		client := sshToServer(natIP)
+		client := c.sshToServer(natIP)
 		defer client.Close()
-		err := fetchScript(client)
+		err := c.fetchScript(client)
 		if err != nil {
 			log.Println(err)
 		}
-		err = runRemoteScript(client, f)
+		err = c.runRemoteScript(client, f)
 		if err != nil {
 			return err
 		}
@@ -297,38 +324,4 @@ func initialSetup(service *compute.Service, natIP net.Addr) error {
 		time.Sleep(60 * time.Second)
 	}
 	return nil
-}
-
-func main() {
-	flag.Parse()
-	ctx := context.Background()
-	service, err := initService(ctx)
-	if err != nil {
-		log.Fatalf("Not able to create a compute service, error: %v", err)
-	}
-	if *createCustomEveNGImage {
-		createEveNGImage((service))
-	}
-
-	exists := isInstanceExists(service)
-	if exists {
-		log.Fatalf("Instance %v already exists", *instanceName)
-	}
-	createInstance(ctx, service)
-
-	natIP, err := natIPLookup(service)
-	if err != nil {
-		log.Fatalf("could not get instance external ip, error: %v", err)
-	}
-	err = initialSetup(service, natIP)
-	if err != nil {
-		log.Println(err)
-	}
-	if err != nil {
-		log.Println(err)
-	}
-	err = createFirewallRules(service)
-	if err != nil {
-		log.Fatalf("could not be able to create firewall rules, error: %v", err)
-	}
 }
