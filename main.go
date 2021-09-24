@@ -5,11 +5,8 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"go-eve/goeve"
-
-	"log"
 )
 
 var (
@@ -25,30 +22,5 @@ var (
 
 func main() {
 	flag.Parse()
-	ctx := context.Background()
-	client, err := goeve.NewClient(ctx, *projectID, *instanceName, *zone, *sshPublicKeyFileName, *sshPrivateKeyFileName, *sshKeyUsername, *customEveNGImageName)
-	if err != nil {
-		log.Fatalf("could not create a goeve client, error: %v", err)
-	}
-	if *createCustomEveNGImage {
-		client.CreateEveNGImage()
-	}
-
-	err = client.CreateInstance()
-	if err != nil {
-		log.Printf("could not create a new compute instance, error: %v", err)
-	}
-
-	natIP, err := client.NATIPLookup()
-	if err != nil {
-		log.Fatalf("could not get instance external ip, error: %v", err)
-	}
-	err = client.InitialSetup(natIP)
-	if err != nil {
-		log.Println(err)
-	}
-	err = client.CreateFirewallRules()
-	if err != nil {
-		log.Fatalf("could not be able to create firewall rules, error: %v", err)
-	}
+	goeve.Run(*projectID, *instanceName, *zone, *sshPublicKeyFileName, *sshPrivateKeyFileName, *sshKeyUsername, *customEveNGImageName, *createCustomEveNGImage)
 }
