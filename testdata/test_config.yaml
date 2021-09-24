@@ -1,0 +1,9 @@
+---
+projectID: testProject
+instanceName: instance1
+zone: us-central1-a
+sshPublicKeyFileName: /home/eve/.ssh/github.pub
+sshPrivateKeyFileName: /home/eve/.ssh/github
+sshKeyUsername: eve
+customEveNGImageName: test-eve-ng
+createCustomEveNGImage: False

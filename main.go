@@ -5,9 +5,17 @@
 package main
 
 import (
+	"flag"
 	"go-eve/goeve"
 )
 
+var (
+	instanceName           = flag.String("instance_name", "", "name of your compute instance")
+	configFile             = flag.String("config_file", "config.yaml", "absolute path to the goeve config file")
+	createCustomEveNGImage = flag.Bool("create_custom_eve_ng_image", false, "Create a custom eve-ng image if not already created")
+)
+
 func main() {
-	goeve.Run()
+	flag.Parse()
+	goeve.Run(*instanceName, *configFile, *createCustomEveNGImage)
 }

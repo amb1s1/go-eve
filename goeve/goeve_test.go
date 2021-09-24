@@ -8,13 +8,24 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
-func setup(t *testing.T) *Client {
+var (
+	testConfigFile = "../testdata/test_config.yaml"
+)
+
+func setup(t *testing.T) (*Client, error) {
 	t.Helper()
-	client := NewClient("testProject", "instance1", "us-central1-a", "testdata/rsa.pub", "testdata/rsa", "eveuser", "test-eve-ng-image", false)
-	return client
+	client, err := NewClient("", testConfigFile, false)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 func TestConstructFilewallRules(t *testing.T) {
-	client := setup(t)
+	client, err := setup(t)
+	if err != nil {
+		t.Errorf("could not create a new goeve client, error: %v", err)
+	}
+
 	tests := []struct {
 		name      string
 		direction string
