@@ -5,16 +5,15 @@
 package goeve
 
 import (
+	"go-eve/connect"
 	evecompute "go-eve/eve-compute"
 	"io/ioutil"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/melbahja/goph"
 	"gopkg.in/yaml.v2"
 
 	compute "google.golang.org/api/compute/v1"
@@ -170,74 +169,23 @@ func (c *Client) readSSHKey() []byte {
 	return body
 }
 
-func (c *Client) sshToServer(natIP net.Addr) *goph.Client {
-	log.Printf("ssh to: %v", natIP)
-	// Start new ssh connection with private key.
-	priKey, err := goph.Key(c.SSHPrivateKeyFileName, "")
-	if err != nil {
-		log.Fatalf("could not get the ssh private key, error: %v", err)
-	}
-
-	client, err := goph.NewUnknown(c.SSHKeyUsername, natIP.String(), priKey)
-	if err != nil {
-		log.Fatalf("could not create a new ssh client, error: %v", err)
-	}
-	return client
-
-}
-
-func (c *Client) fetchScript(client *goph.Client) error {
-	dir, _ := os.Getwd()
+func (c *Client) InitialSetup(publicKey, privateKey, username string, ip net.Addr) error {
 	for _, f := range bashFiles {
-		err := client.Upload(dir+"/"+f, "/home/"+c.SSHKeyUsername+"/"+f)
+		client, err := connect.NewClient(publicKey, privateKey, username, ip)
 		if err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (c *Client) runRemoteScript(client *goph.Client, f string) error {
-	// Execute your command.
-	log.Printf("runnning script on file %v ...", f)
-	out, err := client.Run("chmod +x /home/" + c.SSHKeyUsername + "/" + f)
-	if err != nil {
-		return err
-	}
-	log.Println(string(out))
-	out, err = client.Run("sudo /home/" + c.SSHKeyUsername + "/" + f)
-	if err != nil {
-		return err
-	}
-	log.Println(string(out))
-
-	return nil
-}
-
-func reboot(client *goph.Client) error {
-	log.Println("rebooting....")
-	out, err := client.Run("sudo reboot -f")
-	log.Printf("Reboot Out: %v", string(out))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Client) InitialSetup(natIP net.Addr) error {
-	for _, f := range bashFiles {
-		log.Printf("fetching file %v to remote server %v", f, natIP.String())
-		client := c.sshToServer(natIP)
-		defer client.Close()
-		err := c.fetchScript(client)
+		err = client.Fetch(f)
 		if err != nil {
 			log.Println(err)
 		}
-		err = c.runRemoteScript(client, f)
+
+		err = client.RunScript(f)
 		if err != nil {
 			return err
 		}
-		reboot(client)
+
+		client.Reboot()
 		time.Sleep(60 * time.Second)
 	}
 	return nil
@@ -288,7 +236,7 @@ func Run(instanceName, configFile string, createCustomEveNGImage bool) {
 	if err != nil {
 		log.Fatalf("Could not get compute instance external ip, error: %v", err)
 	}
-	err = client.InitialSetup(ip)
+	err = client.InitialSetup(client.SSHPublicKeyFileName, client.SSHPrivateKeyFileName, client.SSHKeyUsername, ip)
 	if err != nil {
 		log.Println(err)
 	}
