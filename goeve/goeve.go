@@ -5,13 +5,15 @@
 package goeve
 
 import (
-	"go-eve/connect"
-	evecompute "go-eve/eve-compute"
 	"io/ioutil"
 	"log"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/amb1s1/go-eve/connect"
+
+	evecompute "github.com/amb1s1/go-eve/eve-compute"
 
 	"github.com/golang/protobuf/proto"
 	"gopkg.in/yaml.v2"

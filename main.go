@@ -8,7 +8,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"go-eve/goeve"
+
+	"github.com/amb1s1/go-eve/goeve"
 )
 
 var (
