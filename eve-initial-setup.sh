@@ -160,5 +160,5 @@ chmod 664 /var/log/wtmp
 apt-get clean
 dpkg-reconfigure openssh-server
 
-# Ending and rebooting
+# Ending
 touch /opt/ovf/.configured

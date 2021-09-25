@@ -151,3 +151,35 @@ func TestConstructInstanceRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestConstructEveImage(t *testing.T) {
+	client, err := setup(t)
+	if err != nil {
+		t.Errorf("could not create a new goeve client, error: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		want *compute.Image
+	}{
+		{
+			name: "Passed Construction of eve-ng image request",
+			want: &compute.Image{
+				Name: "test-eve-ng",
+				Licenses: []string{
+					"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
+				},
+				SourceDisk: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
+				DiskSizeGb: 10,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		got := client.ConstructEveImage()
+		if diff := cmp.Diff(tc.want, got); diff != "" {
+			t.Errorf("contructImageEveImage() returned unexpected diff (-want +got):\n%s", diff)
+
+		}
+	}
+}
