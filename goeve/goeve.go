@@ -56,12 +56,12 @@ func NewClient(instanceName, oConfigFile string, createCustomEveNGImage bool) (*
 	return c, nil
 }
 
-func (c *Client) cronstructFirewallRules(direction string) *compute.Firewall {
+func (c *Client) constructFirewallRules(direction string) *compute.Firewall {
 	rule := &compute.Firewall{
 		Kind:      "compute#firewall",
 		Name:      strings.ToLower(direction) + "-eve",
-		SelfLink:  "projects/amb1s1/global/firewalls/" + strings.ToLower(direction) + "-eve",
-		Network:   "projects/amb1s1/global/networks/default",
+		SelfLink:  "projects/" + c.ProjectID + "/global/firewalls/" + strings.ToLower(direction) + "-eve",
+		Network:   "projects/" + c.ProjectID + "/global/networks/default",
 		Direction: strings.ToUpper(direction),
 		Priority:  1000,
 		TargetTags: []string{
@@ -110,8 +110,8 @@ func (c *Client) contructInstanceRequest() *compute.Instance {
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
 					DiskName:    "my-root-" + c.InstanceName,
-					SourceImage: "projects/amb1s1/global/images/" + c.CustomEveNGImageName,
-					DiskType:    "projects/amb1s1/zones/us-central1-a/diskTypes/pd-ssd",
+					SourceImage: "projects/" + c.ProjectID + "/global/images/" + c.CustomEveNGImageName,
+					DiskType:    "projects/" + c.ProjectID + "/zones/us-central1-a/diskTypes/pd-ssd",
 				},
 			},
 		},
@@ -199,8 +199,8 @@ func Run(instanceName, configFile string, createCustomEveNGImage bool) {
 
 	eveImage := client.ConstructEveImage()
 	instance := client.contructInstanceRequest()
-	iFirewall := client.cronstructFirewallRules("INGRESS")
-	eFirewall := client.cronstructFirewallRules("EGRESS")
+	iFirewall := client.constructFirewallRules("INGRESS")
+	eFirewall := client.constructFirewallRules("EGRESS")
 	service, err := evecompute.NewClient()
 	if err != nil {
 		log.Fatalf("Could not create a new google compute service, error: %v", err)
