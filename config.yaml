@@ -1,0 +1,16 @@
+---
+projectID: <your project name>
+instanceName: <instance name>
+zone: <instance zone>
+sshPublicKeyFileName: <absolute path to your public ssh key>
+sshPrivateKeyFileName: <absolute path to your public ssh key>
+sshKeyUsername: <the username that shows on your public ssh key>
+customEveNGImageName: <choose the name for your eve-ng custom image>
+
+#Example
+#projectID: eveng
+#instanceName: eve-ng-01
+#zone: us-central1-a
+#sshPublicKeyFileName: /home/amb1s1/.ssh/rsa.pub
+#sshPrivateKeyFileName: /home/amb1s1/.ssh/rsa
+#sshKeyUsername: amb1s1
