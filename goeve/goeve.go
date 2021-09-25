@@ -191,54 +191,67 @@ func (c *Client) InitialSetup(publicKey, privateKey, username string, ip net.Add
 	return nil
 }
 
+func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
+	eveImage := c.ConstructEveImage()
+	instance := c.contructInstanceRequest()
+	iFirewall := c.constructFirewallRules("INGRESS")
+	eFirewall := c.constructFirewallRules("EGRESS")
+	if c.createCustomEveNGImage {
+		err := service.CreateImage(c.ProjectID, eveImage)
+		if err != nil {
+			return err
+		}
+	}
+	if service.IsInstanceExists(c.ProjectID, c.Zone, c.InstanceName) {
+		log.Fatalf("instance %v already exists", c.InstanceName)
+	}
+
+	err := service.CreateInstance(c.ProjectID, c.Zone, instance)
+	if err != nil {
+		return err
+	}
+
+	err = service.InsertFireWallRule(c.ProjectID, iFirewall)
+	if err != nil {
+		return err
+	}
+
+	err = service.InsertFireWallRule(c.ProjectID, eFirewall)
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (c *Client) setupInstance(service evecompute.ServiceFunctions) error {
+	ip, err := service.GetExternalIP(c.ProjectID, c.Zone, c.InstanceName)
+	if err != nil {
+		return err
+	}
+	err = c.InitialSetup(c.SSHPublicKeyFileName, c.SSHPrivateKeyFileName, c.SSHKeyUsername, ip)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func Run(instanceName, configFile string, createCustomEveNGImage bool) {
 	client, err := NewClient(instanceName, configFile, createCustomEveNGImage)
 	if err != nil {
 		log.Fatalf("could not create a new goeve client, error: %v", err)
 	}
 
-	eveImage := client.ConstructEveImage()
-	instance := client.contructInstanceRequest()
-	iFirewall := client.constructFirewallRules("INGRESS")
-	eFirewall := client.constructFirewallRules("EGRESS")
 	service, err := evecompute.NewClient()
 	if err != nil {
 		log.Fatalf("Could not create a new google compute service, error: %v", err)
 	}
-	if client.createCustomEveNGImage {
-		err = service.CreateImage(client.ProjectID, eveImage)
-		if err != nil {
-			log.Fatalf("error creating a new eve ng image, error: %v", err)
-		}
 
+	if err := client.createInstance(service); err != nil {
+		log.Fatalf("could not create a new instance, error: %v", err)
 	}
 
-	if service.IsInstanceExists(client.ProjectID, client.Zone, client.InstanceName) {
-		log.Fatalf("instance %v already exists", client.InstanceName)
+	if err := client.setupInstance(service); err != nil {
+		log.Fatalf("could not setup the new instance, error: %v", err)
 	}
-
-	err = service.CreateInstance(client.ProjectID, client.Zone, instance)
-	if err != nil {
-		log.Fatalf("could not create a new compute instance, error: %v", err)
-	}
-
-	err = service.InsertFireWallRule(client.ProjectID, iFirewall)
-	if err != nil {
-		log.Printf("could not insert the ingress rule, error: %v", err)
-	}
-
-	err = service.InsertFireWallRule(client.ProjectID, eFirewall)
-	if err != nil {
-		log.Printf("could not insert the egress rule, error: %v", err)
-	}
-
-	ip, err := service.GetExternalIP(client.ProjectID, client.Zone, client.InstanceName)
-	if err != nil {
-		log.Fatalf("Could not get compute instance external ip, error: %v", err)
-	}
-	err = client.InitialSetup(client.SSHPublicKeyFileName, client.SSHPrivateKeyFileName, client.SSHKeyUsername, ip)
-	if err != nil {
-		log.Println(err)
-	}
-
 }
