@@ -11,7 +11,7 @@ import (
 
 type connectFunctons interface {
 	Fetch(string) error
-	RunScript(string) error
+	RunScript(string) ([]byte, error)
 	Reboot() error
 }
 
@@ -64,22 +64,20 @@ func (c Client) Fetch(file string) error {
 	return nil
 }
 
-func (c Client) RunScript(file string) error {
+func (c Client) RunScript(file string) ([]byte, error) {
 	// Execute your command.
 	log.Printf("making %v executable...", file)
-	out, err := c.Service.Run("chmod +x /home/" + c.username + "/" + file)
+	_, err := c.Service.Run("chmod +x /home/" + c.username + "/" + file)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	log.Println(string(out))
 	log.Printf("runnning script on file %v ...", file)
-	out, err = c.Service.Run("sudo /home/" + c.username + "/" + file)
+	out, err := c.Service.Run("sudo /home/" + c.username + "/" + file)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	log.Println(string(out))
 
-	return nil
+	return out, nil
 }
 
 func (c Client) Reboot() error {

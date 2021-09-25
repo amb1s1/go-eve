@@ -24,6 +24,16 @@ var (
 	configFile = "config.yaml"
 )
 
+type Firewalls struct {
+	Ingress string
+	Egress  string
+}
+type status struct {
+	Instance string
+	Settings string
+	Firewall Firewalls
+}
+
 type Client struct {
 	ProjectID              string `yaml:"projectID"`
 	InstanceName           string `yaml:"instanceName"`
@@ -33,6 +43,7 @@ type Client struct {
 	SSHKeyUsername         string `yaml:"sshKeyUsername"`
 	CustomEveNGImageName   string `yaml:"customEveNGImageName"`
 	createCustomEveNGImage bool
+	Status                 *status
 }
 
 func NewClient(instanceName, oConfigFile string, createCustomEveNGImage bool) (*Client, error) {
@@ -169,7 +180,7 @@ func (c *Client) readSSHKey() []byte {
 	return body
 }
 
-func (c *Client) InitialSetup(publicKey, privateKey, username string, ip net.Addr) error {
+func (c *Client) InitialSetup(publicKey, privateKey, username string, isInstanceExists bool, ip net.Addr) error {
 	for _, f := range bashFiles {
 		client, err := connect.NewClient(publicKey, privateKey, username, ip)
 		if err != nil {
@@ -180,14 +191,20 @@ func (c *Client) InitialSetup(publicKey, privateKey, username string, ip net.Add
 			log.Println(err)
 		}
 
-		err = client.RunScript(f)
+		out, err := client.RunScript(f)
 		if err != nil {
 			return err
 		}
-
+		if string(out) == "VM is alredy configured\n" {
+			log.Println(string(out))
+			c.Status.Settings = "not modified"
+			break
+		}
 		client.Reboot()
 		time.Sleep(60 * time.Second)
+
 	}
+	c.Status.Settings = "configured"
 	return nil
 }
 
@@ -202,9 +219,6 @@ func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
 			return err
 		}
 	}
-	if service.IsInstanceExists(c.ProjectID, c.Zone, c.InstanceName) {
-		log.Fatalf("instance %v already exists", c.InstanceName)
-	}
 
 	err := service.CreateInstance(c.ProjectID, c.Zone, instance)
 	if err != nil {
@@ -213,31 +227,36 @@ func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
 
 	err = service.InsertFireWallRule(c.ProjectID, iFirewall)
 	if err != nil {
-		return err
+		c.Status.Firewall.Ingress = "not modified"
+		log.Println(err)
 	}
 
 	err = service.InsertFireWallRule(c.ProjectID, eFirewall)
 	if err != nil {
-		return err
+		c.Status.Firewall.Egress = "not modified"
+		log.Println(err)
 	}
 	return nil
 
 }
 
-func (c *Client) setupInstance(service evecompute.ServiceFunctions) error {
+func (c *Client) setupInstance(service evecompute.ServiceFunctions, isInstanceExists bool) error {
 	ip, err := service.GetExternalIP(c.ProjectID, c.Zone, c.InstanceName)
 	if err != nil {
 		return err
 	}
-	err = c.InitialSetup(c.SSHPublicKeyFileName, c.SSHPrivateKeyFileName, c.SSHKeyUsername, ip)
+	err = c.InitialSetup(c.SSHPublicKeyFileName, c.SSHPrivateKeyFileName, c.SSHKeyUsername, isInstanceExists, ip)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func Run(instanceName, configFile string, createCustomEveNGImage bool) {
-	client, err := NewClient(instanceName, configFile, createCustomEveNGImage)
+func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance bool) *status {
+	c, err := NewClient(instanceName, configFile, createCustomEveNGImage)
+	c.Status = &status{
+		Firewall: Firewalls{},
+	}
 	if err != nil {
 		log.Fatalf("could not create a new goeve client, error: %v", err)
 	}
@@ -247,11 +266,37 @@ func Run(instanceName, configFile string, createCustomEveNGImage bool) {
 		log.Fatalf("Could not create a new google compute service, error: %v", err)
 	}
 
-	if err := client.createInstance(service); err != nil {
-		log.Fatalf("could not create a new instance, error: %v", err)
+	isInstanceExists := service.IsInstanceExists(c.ProjectID, c.Zone, instanceName)
+
+	if isInstanceExists && !resetInstance {
+		log.Printf("instance %v already exists", c.InstanceName)
+		c.Status.Instance = "instance " + instanceName + " not modified"
 	}
 
-	if err := client.setupInstance(service); err != nil {
+	if isInstanceExists && resetInstance {
+		err := service.DeleteInstance(c.ProjectID, c.Zone, instanceName)
+		if err != nil {
+			log.Fatalf("could not delete instance %v, error: %v", instanceName, err)
+		}
+		isInstanceExists = false
+	}
+
+	if !isInstanceExists {
+		if err := c.createInstance(service); err != nil {
+			log.Fatalf("could not create a new instance, error: %v", err)
+		}
+		c.Status.Instance = "new instance " + instanceName + " was created"
+	}
+	log.Printf("debug firewall, %v", c.Status.Firewall.Egress)
+	if c.Status.Firewall.Ingress == "" {
+		c.Status.Firewall.Ingress = "created"
+	}
+	if c.Status.Firewall.Egress == "" {
+		c.Status.Firewall.Egress = "created"
+	}
+
+	if err := c.setupInstance(service, isInstanceExists); err != nil {
 		log.Fatalf("could not setup the new instance, error: %v", err)
 	}
+	return c.Status
 }

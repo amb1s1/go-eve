@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/compute/v1"
 )
@@ -16,6 +17,7 @@ type ServiceFunctions interface {
 	InsertFireWallRule(string, *compute.Firewall) error
 	GetExternalIP(string, string, string) (net.Addr, error)
 	IsInstanceExists(string, string, string) bool
+	DeleteInstance(string, string, string) error
 }
 
 type computeService struct {
@@ -89,4 +91,23 @@ func (c computeService) IsInstanceExists(projectID, zone, instanceName string) b
 		return true
 	}
 	return false
+}
+
+func (c computeService) DeleteInstance(projectID, zone, instanceName string) error {
+	op, err := c.service.Instances.Delete(projectID, zone, instanceName).Do()
+	if err != nil {
+		return err
+	}
+	for {
+		log.Printf("deleting instance %v", instanceName)
+		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
+		s.Start()                                                   // Start the spinner
+		time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
+		s.Stop()
+		if !c.IsInstanceExists(projectID, zone, instanceName) {
+			break
+		}
+	}
+	log.Println(op.Status)
+	return nil
 }
