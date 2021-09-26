@@ -17,10 +17,11 @@ This tool will :
 ## Requirements
 
 1. Golang install
+    * [Go Install Guide](https://golang.org/doc/install)
 2. Set up the gcloud CLI to run on your computer [gcl CLI install guide](https://cloud.google.com/sdk/docs/install)     
 3. Create a Project
-5. Enable the Compute Engine and Cloud Build APIs.
-    [Enable the APIs](https://console.cloud.google.com/flows/enableapi?apiid=compute,cloudbuild.googleapis.com&_ga=2.208966098.1574923679.1632600072-1712777355.1631763170)
+4. Enable the Compute Engine and Cloud Build APIs.
+    * [Enable the APIs](https://console.cloud.google.com/flows/enableapi?apiid=compute,cloudbuild.googleapis.com&_ga=2.208966098.1574923679.1632600072-1712777355.1631763170)
 5. Create a local key file containing your new service account credentials (use the same instructions link above)
 6. Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your local key file.
 7. Initiate gcloud SDK `gcloud init` [guide](https://cloud.google.com/sdk/gcloud/reference/init)
