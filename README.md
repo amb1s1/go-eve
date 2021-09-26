@@ -1,5 +1,5 @@
 
-# go-eve 
+# go-eve BUILD, PLAY, TEARDOWN, REPEAT
 
 
 ## Summary
@@ -16,11 +16,37 @@ This tool will :
 
 ## Requirements
 
-1. Set up the gcloud cli to run on your pc (instructions: https://cloud.google.com/sdk/gcloud)
-  1. gcl cli install guide: https://cloud.google.com/sdk/docs/install     
-2. Create a service account for your go application to run under (instructions: https://cloud.google.com/docs/authentication/production#creating_a_service_account)
-3. Grant permissions to the service account (use the same instructions link above)
-4. Create a local key file containing your new service account credentials (use the same instructions link above)
-5. Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your local key file
+1. Golang install
+2. Set up the gcloud CLI to run on your computer [gcl CLI install guide](https://cloud.google.com/sdk/docs/install)     
+3. Create a Project
+5. Enable the Compute Engine and Cloud Build APIs.
+    [Enable the APIs](https://console.cloud.google.com/flows/enableapi?apiid=compute,cloudbuild.googleapis.com&_ga=2.208966098.1574923679.1632600072-1712777355.1631763170)
+5. Create a local key file containing your new service account credentials (use the same instructions link above)
+6. Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your local key file.
+7. Initiate gcloud SDK `gcloud init` [guide](https://cloud.google.com/sdk/gcloud/reference/init)
 
-![alt text](https://golang.org/lib/godoc/images/go-logo-blue.svg)
+
+
+## How to use it
+### Configuration
+1. Make sure that you ran `gcloud init` to set up your project.
+2. Open the `config.yaml` file and make all the necessary changes.
+
+### Build it
+`go build main.go`
+
+### run
+On your first run, you will need to create a custom eve-ng image.
+`./main --create_custom_eve_ng_image=true --instance_name=eve-go1`
+This will:
+1. Build a custom image.
+2. Install eve-ng.
+3. Setup eve-ng.
+4. Create an Ingress && Egress firewall to allow telnet to the eve-ng node from outside gcloud.
+
+In the end, you should be able to HTTP into the eve-ng server and create labs.
+
+
+## Roadmap
+1. Upload and setup by vendor and os(You still need to provide the os).
+2. Backup your lab config.
