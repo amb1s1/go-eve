@@ -52,6 +52,18 @@ func (c computeService) CreateImage(projectID string, image *compute.Image) erro
 	if err != nil {
 		return err
 	}
+
+	for {
+		time.Sleep(10 * time.Second)
+		op, err := c.service.Images.Get(projectID, image.Name).Do()
+		log.Printf("Error: %v", err)
+		log.Printf("Operation: %v", op.Status)
+		log.Printf("creating new image %v status is: %v", image.Name, op.Status)
+		if op.Status != "PENDING" {
+			break
+		}
+	}
+
 	return nil
 }
 

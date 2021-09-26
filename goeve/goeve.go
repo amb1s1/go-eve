@@ -168,8 +168,8 @@ func (c *Client) ConstructEveImage() *compute.Image {
 		Licenses: []string{
 			"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
 		},
-		SourceDisk: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
-		DiskSizeGb: 10,
+		SourceImage: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
+		DiskSizeGb:  10,
 	}
 	return image
 }
@@ -268,28 +268,27 @@ func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance 
 		log.Fatalf("Could not create a new google compute service, error: %v", err)
 	}
 
-	isInstanceExists := service.IsInstanceExists(c.ProjectID, c.Zone, instanceName)
+	isInstanceExists := service.IsInstanceExists(c.ProjectID, c.Zone, c.InstanceName)
 
 	if isInstanceExists && !resetInstance {
 		log.Printf("instance %v already exists", c.InstanceName)
-		c.Status.Instance = "instance " + instanceName + " not modified"
+		c.Status.Instance = "instance " + c.InstanceName + " not modified"
 	}
 
 	if isInstanceExists && resetInstance {
-		err := service.DeleteInstance(c.ProjectID, c.Zone, instanceName)
+		err := service.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName)
 		if err != nil {
-			log.Fatalf("could not delete instance %v, error: %v", instanceName, err)
+			log.Fatalf("could not delete instance %v, error: %v", c.InstanceName, err)
 		}
 		isInstanceExists = false
 	}
 
 	if !isInstanceExists {
 		if err := c.createInstance(service); err != nil {
-			log.Fatalf("could not create a new instance, error: %v", err)
+			log.Printf("could not create a new instance, error: %v", err)
 		}
-		c.Status.Instance = "new instance " + instanceName + " was created"
+		c.Status.Instance = "new instance " + c.InstanceName + " was created"
 	}
-	log.Printf("debug firewall, %v", c.Status.Firewall.Egress)
 	if c.Status.Firewall.Ingress == "" {
 		c.Status.Firewall.Ingress = "created"
 	}
