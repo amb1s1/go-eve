@@ -1,4 +1,4 @@
-
+![example workflow](https://github.com/amb1s1/go-eve/actions/workflows/go.yml/badge.svg)
 # go-eve BUILD, PLAY, TEARDOWN, REPEAT
 
 
