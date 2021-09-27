@@ -29,9 +29,11 @@ This tool will :
 
 
 ## How to use it
+### Go get
+`go get github.com/amb1s1/go-eve`
+
 ### Configuration
-1. Make sure that you ran `gcloud init` to set up your project.
-2. Open the `config.yaml` file and make all the necessary changes.
+1. Open the `config.yaml` file and make all the necessary changes.
 
 ### Build it
 `go build main.go`
