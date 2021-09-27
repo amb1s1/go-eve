@@ -169,7 +169,7 @@ func TestConstructEveImage(t *testing.T) {
 				Licenses: []string{
 					"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
 				},
-				SourceDisk: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
+				SourceImage: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
 				DiskSizeGb: 10,
 			},
 		},
