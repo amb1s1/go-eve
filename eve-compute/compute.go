@@ -12,12 +12,15 @@ import (
 )
 
 type ServiceFunctions interface {
+	IsImageCreated(string, string) (bool, error)
 	CreateImage(string, *compute.Image) error
 	CreateInstance(string, string, *compute.Instance) error
 	InsertFireWallRule(string, *compute.Firewall) error
 	GetExternalIP(string, string, string) (net.Addr, error)
-	IsInstanceExists(string, string, string) bool
+	InstanceStatus(string, string, string) string
 	DeleteInstance(string, string, string) error
+	StopInstance(string, string, string) error
+	StartInstance(string, string, string) error
 }
 
 type computeService struct {
@@ -45,6 +48,17 @@ func initService(ctx context.Context) (*compute.Service, error) {
 		return nil, err
 	}
 	return service, err
+}
+
+func (c computeService) IsImageCreated(projectID, imageName string) (bool, error) {
+	op, err := c.service.Images.Get(projectID, imageName).Do()
+	if err != nil {
+		return false, err
+	}
+	if op.Status == "READY" {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (c computeService) CreateImage(projectID string, image *compute.Image) error {
@@ -97,12 +111,12 @@ func (c computeService) GetExternalIP(projectID, zone, instanceName string) (net
 	return nil, nil
 }
 
-func (c computeService) IsInstanceExists(projectID, zone, instanceName string) bool {
+func (c computeService) InstanceStatus(projectID, zone, instanceName string) string {
 	found, _ := c.service.Instances.Get(projectID, zone, instanceName).Do()
 	if found != nil {
-		return true
+		return found.Status
 	}
-	return false
+	return ""
 }
 
 func (c computeService) DeleteInstance(projectID, zone, instanceName string) error {
@@ -116,10 +130,48 @@ func (c computeService) DeleteInstance(projectID, zone, instanceName string) err
 		s.Start()                                                   // Start the spinner
 		time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
 		s.Stop()
-		if !c.IsInstanceExists(projectID, zone, instanceName) {
+		if status := c.InstanceStatus(projectID, zone, instanceName); status == "" {
 			break
 		}
 	}
 	log.Println(op.Status)
+	return nil
+}
+
+func (c computeService) StopInstance(projectID, zone, instanceName string) error {
+	_, err := c.service.Instances.Stop(projectID, zone, instanceName).Do()
+	if err != nil {
+		return err
+	}
+	for {
+		log.Printf("Stopping instance %v", instanceName)
+		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
+		s.Start()                                                   // Start the spinner
+		time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
+		s.Stop()
+		if status := c.InstanceStatus(projectID, zone, instanceName); status == "TERMINATED" {
+			log.Printf("Instance %v stopped", instanceName)
+			break
+		}
+	}
+	return nil
+}
+
+func (c computeService) StartInstance(projectID, zone, instanceName string) error {
+	_, err := c.service.Instances.Start(projectID, zone, instanceName).Do()
+	if err != nil {
+		return err
+	}
+	for {
+		log.Printf("Starting instance %v", instanceName)
+		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
+		s.Start()                                                   // Start the spinner
+		time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
+		s.Stop()
+		if status := c.InstanceStatus(projectID, zone, instanceName); status == "RUNNING" {
+			log.Printf("Instance %v is running", instanceName)
+			break
+		}
+	}
 	return nil
 }

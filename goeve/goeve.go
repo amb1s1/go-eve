@@ -182,7 +182,7 @@ func (c *Client) readSSHKey() []byte {
 	return body
 }
 
-func (c *Client) InitialSetup(publicKey, privateKey, username string, isInstanceExists bool, ip net.Addr) error {
+func (c *Client) InitialSetup(publicKey, privateKey, username, instanceStatus string, ip net.Addr) error {
 	for _, f := range bashFiles {
 		client, err := connect.NewClient(publicKey, privateKey, username, ip)
 		if err != nil {
@@ -216,10 +216,18 @@ func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
 	iFirewall := c.constructFirewallRules("INGRESS")
 	eFirewall := c.constructFirewallRules("EGRESS")
 	if c.createCustomEveNGImage {
-		err := service.CreateImage(c.ProjectID, eveImage)
+		imageCreated, err := service.IsImageCreated(c.ProjectID, c.CustomEveNGImageName)
 		if err != nil {
 			return err
 		}
+		if !imageCreated {
+			err := service.CreateImage(c.ProjectID, eveImage)
+			if err != nil {
+				return err
+			}
+
+		}
+		log.Printf("Custom Image name: %v is already created. Skipping new custom image creation.", c.CustomEveNGImageName)
 	}
 
 	err := service.CreateInstance(c.ProjectID, c.Zone, instance)
@@ -242,19 +250,19 @@ func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
 
 }
 
-func (c *Client) setupInstance(service evecompute.ServiceFunctions, isInstanceExists bool) error {
+func (c *Client) setupInstance(service evecompute.ServiceFunctions, instanceStatus string) error {
 	ip, err := service.GetExternalIP(c.ProjectID, c.Zone, c.InstanceName)
 	if err != nil {
 		return err
 	}
-	err = c.InitialSetup(c.SSHPublicKeyFileName, c.SSHPrivateKeyFileName, c.SSHKeyUsername, isInstanceExists, ip)
+	err = c.InitialSetup(c.SSHPublicKeyFileName, c.SSHPrivateKeyFileName, c.SSHKeyUsername, instanceStatus, ip)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance bool) *status {
+func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance bool, stop bool) *status {
 	c, err := NewClient(instanceName, configFile, createCustomEveNGImage)
 	c.Status = &status{
 		Firewall: Firewalls{},
@@ -268,22 +276,50 @@ func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance 
 		log.Fatalf("Could not create a new google compute service, error: %v", err)
 	}
 
-	isInstanceExists := service.IsInstanceExists(c.ProjectID, c.Zone, c.InstanceName)
+	instanceStatus := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
 
-	if isInstanceExists && !resetInstance {
+	if stop {
+		if instanceStatus == "" {
+			log.Fatalf("Could not stop instance %v, instance does not exists", instanceName)
+		}
+		if instanceStatus == "TERMINATED" {
+			log.Fatalf("Could not stop instance %v, instance is not running", instanceName)
+		}
+		err := service.StopInstance(c.ProjectID, c.Zone, c.InstanceName)
+		if err != nil {
+			return nil
+		}
+
+		c.Status.Instance = "Stopped"
+		c.Status.Firewall.Egress = "Not modified"
+		c.Status.Firewall.Ingress = "Not modified"
+		c.Status.Settings = "Not modified"
+
+		return c.Status
+	}
+	if instanceStatus == "TERMINATED" {
+		log.Printf("instance %v is not running, starting instance", c.InstanceName)
+		err := service.StartInstance(c.ProjectID, c.Zone, c.InstanceName)
+		if err != nil {
+			return nil
+		}
+		instanceStatus = "RUNNING"
+	}
+
+	if instanceStatus == "RUNNING" && !resetInstance {
 		log.Printf("instance %v already exists", c.InstanceName)
 		c.Status.Instance = "instance " + c.InstanceName + " not modified"
 	}
 
-	if isInstanceExists && resetInstance {
+	if instanceStatus == "RUNNING" && resetInstance {
 		err := service.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName)
 		if err != nil {
 			log.Fatalf("could not delete instance %v, error: %v", c.InstanceName, err)
 		}
-		isInstanceExists = false
+		instanceStatus = ""
 	}
 
-	if !isInstanceExists {
+	if instanceStatus == "" {
 		if err := c.createInstance(service); err != nil {
 			log.Printf("could not create a new instance, error: %v", err)
 		}
@@ -296,7 +332,7 @@ func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance 
 		c.Status.Firewall.Egress = "created"
 	}
 
-	if err := c.setupInstance(service, isInstanceExists); err != nil {
+	if err := c.setupInstance(service, instanceStatus); err != nil {
 		log.Fatalf("could not setup the new instance, error: %v", err)
 	}
 	return c.Status
