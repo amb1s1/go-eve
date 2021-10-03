@@ -4,8 +4,7 @@ instanceName: instance1
 zone: us-central1-a
 machineType: c2-standard-4
 diskSize: 10
-sshPublicKeyFileName: ../testdata/testonly.pub
-sshPrivateKeyFileName: ../testdata/testonly
+publicKeyPath: ../testdata/testonly.pub
+privateKeyPath: ../testdata/testonly
 sshKeyUsername: eve
-customEveNGImageName: test-eve-ng
-createCustomEveNGImage: False
+customImageName: test-eve-ng

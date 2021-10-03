@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/amb1s1/go-eve/connect"
 
@@ -19,8 +18,9 @@ import (
 )
 
 var (
-	bashFiles  = []string{"install.sh", "eve-initial-setup.sh"}
-	configFile = "config.yaml"
+	bashFiles    = []string{"install.sh", "eve-initial-setup.sh"}
+	configFile   = "config.yaml"
+	fwDirections = []string{"INGRESS", "EGRESS"}
 )
 
 type Firewalls struct {
@@ -34,43 +34,48 @@ type status struct {
 }
 
 type Client struct {
-	ProjectID             string `yaml:"projectID"`
-	InstanceName          string `yaml:"instanceName"`
-	Zone                  string `yaml:"zone"`
-	SSHPublicKeyFileName  string `yaml:"sshPublicKeyFileName"`
-	SSHPrivateKeyFileName string `yaml:"sshPrivateKeyFileName"`
-	SSHKeyUsername        string `yaml:"sshKeyUsername"`
-	CustomEveNGImageName  string `yaml:"customEveNGImageName"`
-	MachineType           string `yaml:"machineType"`
-	DiskSize              int64  `yaml:"diskSize"`
-	createCustomImage     bool
-	Status                *status
+	ProjectID         string `yaml:"projectID"`
+	InstanceName      string `yaml:"instanceName"`
+	Zone              string `yaml:"zone"`
+	PublicKeyPath     string `yaml:"publicKeyPath"`
+	PrivateKeyPath    string `yaml:"privateKeyPath"`
+	SSHKeyUsername    string `yaml:"sshKeyUsername"`
+	CustomImageName   string `yaml:"customImageName"`
+	MachineType       string `yaml:"machineType"`
+	DiskSize          int64  `yaml:"diskSize"`
+	createCustomImage bool
+	Status            *status
 }
 
-func New(instanceName, oConfigFile string, createCustomImage bool) (*Client, error) {
+func New(instanceName, orideConfigFile string, createCustomImage bool) (*Client, error) {
 	c := &Client{}
-	if oConfigFile != "" {
-		configFile = oConfigFile
-	}
-	file, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		log.Fatalf("could not read public ssh file error: %v", err)
+
+	if orideConfigFile != "" {
+		configFile = orideConfigFile
 	}
 
-	if err = yaml.Unmarshal(file, &c); err != nil {
+	f, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		log.Fatalf("Could not read public ssh file error: %v", err)
+	}
+
+	if err := yaml.Unmarshal(f, &c); err != nil {
 		return nil, err
 	}
+
 	if instanceName != "" {
 		c.InstanceName = instanceName
 	}
+
 	c.createCustomImage = createCustomImage
 
 	return c, nil
 }
 
 func (c *Client) firewallRequest(direction string) *compute.Firewall {
-	log.Printf("constructing the firewall rule %v.", direction)
-	rule := &compute.Firewall{
+	log.Printf("Constructing the firewall rule %v", direction)
+
+	r := &compute.Firewall{
 		Kind:      "compute#firewall",
 		Name:      strings.ToLower(direction) + "-eve",
 		SelfLink:  "projects/" + c.ProjectID + "/global/firewalls/" + strings.ToLower(direction) + "-eve",
@@ -91,20 +96,22 @@ func (c *Client) firewallRequest(direction string) *compute.Firewall {
 	}
 
 	if strings.ToUpper(direction) != "INGRESS" {
-		rule.DestinationRanges = append(rule.DestinationRanges, "0.0.0.0/0")
-		return rule
+		r.DestinationRanges = append(r.DestinationRanges, "0.0.0.0/0")
+		return r
 	}
-	rule.SourceRanges = append(rule.SourceRanges, "0.0.0.0/0")
 
-	return rule
+	r.SourceRanges = append(r.SourceRanges, "0.0.0.0/0")
+
+	return r
 }
 
 func (c *Client) instanceRequest() *compute.Instance {
-	log.Println("constructing instance request.")
+	log.Println("Constructing instance request")
+
 	prefix := "https://www.googleapis.com/compute/v1/projects/" + c.ProjectID
 	sshKey := c.readSSHKey()
 
-	instance := &compute.Instance{
+	r := &compute.Instance{
 		Name:           c.InstanceName,
 		Description:    "eve-ng compute instance created by go-eve",
 		MinCpuPlatform: "Intel Cascade Lake",
@@ -124,7 +131,7 @@ func (c *Client) instanceRequest() *compute.Instance {
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
 					DiskName:    "my-root-" + c.InstanceName,
-					SourceImage: "projects/" + c.ProjectID + "/global/images/" + c.CustomEveNGImageName,
+					SourceImage: "projects/" + c.ProjectID + "/global/images/" + c.CustomImageName,
 					DiskType:    "projects/" + c.ProjectID + "/zones/us-central1-a/diskTypes/pd-ssd",
 				},
 			},
@@ -159,80 +166,90 @@ func (c *Client) instanceRequest() *compute.Instance {
 			},
 		},
 	}
-	return instance
+	return r
 
 }
 
 func (c *Client) imageRequest() *compute.Image {
-	log.Println("constructing image request.")
-	img := &compute.Image{
-		Name: c.CustomEveNGImageName,
+	log.Println("Constructing image request")
+
+	r := &compute.Image{
+		Name: c.CustomImageName,
 		Licenses: []string{
 			"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
 		},
 		SourceImage: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
 		DiskSizeGb:  c.DiskSize,
 	}
-	return img
+
+	return r
 }
 
 func (c *Client) readSSHKey() []byte {
-	log.Println("reading ssh key.")
-	body, err := ioutil.ReadFile(c.SSHPublicKeyFileName)
+	log.Println("Reading ssh key")
+
+	f, err := ioutil.ReadFile(c.PublicKeyPath)
 	if err != nil {
-		log.Fatalf("could not read public ssh file %v, error: %v", c.SSHPublicKeyFileName, err)
+		log.Fatalf("Could not read public ssh file %v, error: %v", c.PublicKeyPath, err)
 	}
-	return body
+
+	return f
+
 }
 
 func (c *Client) initialSetup(publicKey, privateKey, username string, ip net.Addr) error {
-	log.Println("initializing eve-go settings.")
+	log.Println("Initializing eve-go settings")
+
 	for _, f := range bashFiles {
-		client, err := connect.NewClient(publicKey, privateKey, username, ip)
-		if err != nil {
-			return err
-		}
-		err = client.Fetch(f)
+		sc, err := connect.NewClient(publicKey, privateKey, username, ip)
 		if err != nil {
 			return err
 		}
 
-		out, err := client.RunScript(f)
+		if err := sc.Fetch(f); err != nil {
+			return err
+		}
+
+		out, err := sc.RunScript(f)
 		if err != nil {
 			return err
 		}
+
 		if string(out) == "VM is alredy configured\n" {
 			log.Println(strings.ToLower(string(out)))
 			c.Status.Settings = "not modified"
+
 			return nil
 		}
-		client.Reboot()
-		time.Sleep(60 * time.Second)
 
+		sc.Reboot()
 	}
+
 	c.Status.Settings = "configured"
+
 	return nil
 }
 
 func (c *Client) createImage(s evecompute.ServiceFunctions) error {
-	eveImage := c.imageRequest()
-	imageCreated := s.IsImageCreated(c.ProjectID, c.CustomEveNGImageName)
-	if !imageCreated {
-		err := s.CreateImage(c.ProjectID, eveImage)
-		if err != nil {
+	r := c.imageRequest()
+
+	if imageCreated := s.IsImageCreated(c.ProjectID, c.CustomImageName); !imageCreated { // image not created
+		if err := s.CreateImage(c.ProjectID, r); err != nil {
 			return err
 		}
+
 		return nil
 	}
-	log.Printf("custom image name: %v is already created. Skipping new custom image creation.", c.CustomEveNGImageName)
+
+	log.Printf("Custom image name: %v is already created. Skipping new custom image creation.", c.CustomImageName)
 
 	return nil
 }
 
 func (c *Client) createInstance(s evecompute.ServiceFunctions) error {
-	instance := c.instanceRequest()
-	err := s.CreateInstance(c.ProjectID, c.Zone, instance)
-	if err != nil {
+	r := c.instanceRequest()
+
+	if err := s.CreateInstance(c.ProjectID, c.Zone, r); err != nil {
 		return err
 	}
 
@@ -240,55 +257,57 @@ func (c *Client) createInstance(s evecompute.ServiceFunctions) error {
 }
 
 func (c *Client) createFirewallRules(s evecompute.ServiceFunctions) error {
-	iFirewall := c.firewallRequest("INGRESS")
-	eFirewall := c.firewallRequest("EGRESS")
+	for _, f := range fwDirections {
+		fr := c.firewallRequest(f)
 
-	err := s.InsertFirewallRule(c.ProjectID, iFirewall)
-	if err != nil {
-		c.Status.Firewall.Ingress = "not modified"
-		return err
+		if err := s.InsertFirewallRule(c.ProjectID, fr); err != nil {
+
+			if f == "INGRESS" {
+				c.Status.Firewall.Ingress = "not modified"
+			}
+
+			if f == "EGRESS" {
+				c.Status.Firewall.Egress = "not modified"
+			}
+
+			return err
+		}
 	}
 
-	err = s.InsertFirewallRule(c.ProjectID, eFirewall)
-	if err != nil {
-		c.Status.Firewall.Egress = "not modified"
-		return err
-	}
 	return nil
 }
 
 func (c *Client) setupInstance(s evecompute.ServiceFunctions) error {
-	log.Println("seting instance.")
-	ip, err := s.GetExternalIP(c.ProjectID, c.Zone, c.InstanceName)
+	log.Println("Seting instance")
+
+	ip, err := s.LookupExternalIP(c.ProjectID, c.Zone, c.InstanceName)
 	if err != nil {
 		return err
 	}
-	err = c.initialSetup(c.SSHPublicKeyFileName, c.SSHPrivateKeyFileName, c.SSHKeyUsername, ip)
-	if err != nil {
+
+	if err := c.initialSetup(c.PublicKeyPath, c.PrivateKeyPath, c.SSHKeyUsername, ip); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (c *Client) teardown(s evecompute.ServiceFunctions) error {
-	err := s.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName)
-	if err != nil {
+	if err := s.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName); err != nil {
 		return err
 	}
 
 	c.Status.Instance = "Deleted"
 	c.Status.Settings = "Gone with the Instance"
 
-	err = s.DeleteFirewallRules(c.ProjectID)
-	if err != nil {
+	if err := s.DeleteFirewallRules(c.ProjectID); err != nil {
 		return err
 	}
 
 	c.Status.Firewall.Egress = "Deleted"
 	c.Status.Firewall.Ingress = "Deleted"
 
-	err = s.DeleteImage(c.ProjectID, c.CustomEveNGImageName)
-	if err != nil {
+	if err := s.DeleteImage(c.ProjectID, c.CustomImageName); err != nil {
 		return err
 	}
 
@@ -296,19 +315,19 @@ func (c *Client) teardown(s evecompute.ServiceFunctions) error {
 }
 
 func (c *Client) resetInstance(s evecompute.ServiceFunctions) error {
-	err := s.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName)
-	if err != nil {
+	if err := s.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName); err != nil {
 		return err
 	}
-	err = c.create(s)
-	if err != nil {
+
+	if err := c.create(s); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (c *Client) create(s evecompute.ServiceFunctions) error {
-	log.Println("create, start the workflow for creating a new compute instance.")
+	log.Println("Create, start the workflow for creating a new compute instance")
 
 	if c.createCustomImage {
 		if err := c.createImage(s); err != nil {
@@ -348,13 +367,14 @@ func (c *Client) create(s evecompute.ServiceFunctions) error {
 
 func (c *Client) stop(status string, s evecompute.ServiceFunctions) error {
 	if status == "" {
-		return errors.New("compute instance does not exists.")
+		return errors.New("compute instance does not exists")
 	}
+
 	if status == "TERMINATED" {
-		return errors.New("compute instance is not running.")
+		return errors.New("compute instance is not running")
 	}
-	err := s.StopInstance(c.ProjectID, c.Zone, c.InstanceName)
-	if err != nil {
+
+	if err := s.StopInstance(c.ProjectID, c.Zone, c.InstanceName); err != nil {
 		return nil
 	}
 
@@ -362,41 +382,43 @@ func (c *Client) stop(status string, s evecompute.ServiceFunctions) error {
 	c.Status.Firewall.Egress = "Not modified"
 	c.Status.Firewall.Ingress = "Not modified"
 	c.Status.Settings = "Not modified"
+
 	return nil
 }
 
 func Run(instanceName, configFile string, createCustomImage, createLab, resetInstance, stop, teardown bool) *status {
 	c, err := New(instanceName, configFile, createCustomImage)
+	if err != nil {
+		log.Fatalf("Could not create a new goeve client, error: %v", err)
+	}
+
 	c.Status = &status{
 		Firewall: Firewalls{},
-	}
-	if err != nil {
-		log.Fatalf("could not create a new goeve client, error: %v.", err)
 	}
 
 	service, err := evecompute.New()
 	if err != nil {
-		log.Fatalf("could not create a new compute service, error: %v.", err)
+		log.Fatalf("Could not create a new compute service, error: %v", err)
 	}
 
-	instanceStatus := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
+	status := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
 
 	switch {
 	case stop:
-		if err := c.stop(instanceStatus, service); err != nil {
-			log.Fatalf("could not stop compute instance %v, error: %v.", c.InstanceName, err)
+		if err := c.stop(status, service); err != nil {
+			log.Fatalf("Could not stop compute instance %v, error: %v", c.InstanceName, err)
 		}
 	case resetInstance:
 		if err := c.resetInstance(service); err != nil {
-			log.Fatalf("could not reset instance %v, error: %v.", c.InstanceName, err)
+			log.Fatalf("Could not reset instance %v, error: %v", c.InstanceName, err)
 		}
 	case teardown:
 		if err := c.teardown(service); err != nil {
-			log.Fatalf("could not teardown lab for compute instance %v, error: %v.", c.InstanceName, err)
+			log.Fatalf("Could not teardown lab for compute instance %v, error: %v", c.InstanceName, err)
 		}
 	case createLab:
 		if err := c.create(service); err != nil {
-			log.Fatalf("could not create an entire lab, error: %v.", err)
+			log.Fatalf("Could not create an entire lab, error: %v", err)
 		}
 	}
 
