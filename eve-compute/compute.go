@@ -1,3 +1,6 @@
+// Package evecompute provides all the logic to bring a eve-ng lab to a cloud service.
+//
+// This package only support Google cloud for now.
 package evecompute
 
 import (
@@ -11,6 +14,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
+//
 type ServiceFunctions interface {
 	IsImageCreated(string, string) bool
 	CreateImage(string, *compute.Image) error
@@ -29,6 +33,8 @@ type computeService struct {
 	service *compute.Service
 }
 
+// New handles the creation of a new cloud service api client.
+// For now we only support google cloud.
 func New() (ServiceFunctions, error) {
 	cs := computeService{}
 	ctx := context.Background()
@@ -58,6 +64,7 @@ func initService(ctx context.Context) (*compute.Service, error) {
 	return service, err
 }
 
+// IsImageCreated verifies if the image is created.
 func (c computeService) IsImageCreated(projectID, name string) bool {
 	op, err := c.service.Images.Get(projectID, name).Do()
 	if err != nil {
@@ -71,6 +78,7 @@ func (c computeService) IsImageCreated(projectID, name string) bool {
 	return false
 }
 
+// CreatesImage handles the creation of a custom image.
 func (c computeService) CreateImage(projectID string, image *compute.Image) error {
 	log.Printf("creating new image %v.", image.Name)
 
@@ -97,6 +105,7 @@ func (c computeService) CreateImage(projectID string, image *compute.Image) erro
 	return nil
 }
 
+// DeleteImage deletes a custom image.
 func (c computeService) DeleteImage(projectID, name string) error {
 	if created := c.IsImageCreated(projectID, name); created {
 		_, err := c.service.Images.Delete(projectID, name).Do()
@@ -113,6 +122,7 @@ func (c computeService) DeleteImage(projectID, name string) error {
 	return nil
 }
 
+// CreateInstance creates a google cloud compute instance.
 func (c computeService) CreateInstance(projectID, zone string, request *compute.Instance) error {
 	log.Printf("creating instance %v.", request.Name)
 
@@ -148,6 +158,7 @@ func isFirewallRuleExist(projectID, name string, c computeService) bool {
 	return true
 }
 
+// InsertFirewallRule inserts a fule rule into the google cloud project.
 func (c computeService) InsertFirewallRule(projectID string, request *compute.Firewall) error {
 	if created := isFirewallRuleExist(projectID, request.Name, c); !created {
 		_, err := c.service.Firewalls.Insert(projectID, request).Do()
@@ -161,6 +172,7 @@ func (c computeService) InsertFirewallRule(projectID string, request *compute.Fi
 	return nil
 }
 
+// DeleteFirewallRules deletes both ingress and egress firewall rules created by go-eve tool.
 func (c computeService) DeleteFirewallRules(projectID string) error {
 	for _, f := range []string{"ingress-eve", "egress-eve"} {
 
@@ -182,6 +194,7 @@ func (c computeService) DeleteFirewallRules(projectID string) error {
 	return nil
 }
 
+// LookupExternalIP looks for the compute instance assigned external ip also know as nat ip.
 func (c computeService) LookupExternalIP(projectID, zone, instanceName string) (net.Addr, error) {
 	log.Println("looking for the instance external ip.")
 
@@ -201,6 +214,7 @@ func (c computeService) LookupExternalIP(projectID, zone, instanceName string) (
 	return nil, nil
 }
 
+// InstanceStatus looks for the compute instance status.
 func (c computeService) InstanceStatus(projectID, zone, name string) string {
 	found, _ := c.service.Instances.Get(projectID, zone, name).Do()
 	if found != nil {
@@ -210,6 +224,7 @@ func (c computeService) InstanceStatus(projectID, zone, name string) string {
 	return ""
 }
 
+// DeleteInstance deletes the compute instance.
 func (c computeService) DeleteInstance(projectID, zone, name string) error {
 	if s := c.InstanceStatus(projectID, zone, name); s != "" {
 		_, err := c.service.Instances.Delete(projectID, zone, name).Do()
@@ -235,6 +250,7 @@ func (c computeService) DeleteInstance(projectID, zone, name string) error {
 	return nil
 }
 
+// StopInstance stops/shutdown the compute instance.
 func (c computeService) StopInstance(projectID, zone, name string) error {
 	status := c.InstanceStatus(projectID, zone, name)
 
@@ -267,6 +283,7 @@ func (c computeService) StopInstance(projectID, zone, name string) error {
 	return nil
 }
 
+// StartInstance starts/turn on the compute instance.
 func (c computeService) StartInstance(projectID, zone, name string) error {
 	_, err := c.service.Instances.Start(projectID, zone, name).Do()
 	if err != nil {

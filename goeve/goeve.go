@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/amb1s1/go-eve/connect"
 
@@ -221,7 +222,7 @@ func (c *Client) initialSetup(publicKey, privateKey, username string, ip net.Add
 
 			return nil
 		}
-
+		time.Sleep(60 * time.Second)
 		sc.Reboot()
 	}
 

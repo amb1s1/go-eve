@@ -78,8 +78,10 @@ func (c Client) Fetch(file string) error {
 	log.Printf("Fetching file %v to server %v", file, c.ip.String())
 
 	if err := c.Service.Upload(dir+"/"+file, "/home/"+c.username+"/"+file); err != nil {
-		return err
+		return fmt.Errorf("could not fetch file %v, error: %v", file, err)
 	}
+
+	log.Printf("Fetched file: %v", file)
 
 	return nil
 }
@@ -88,14 +90,14 @@ func (c Client) RunScript(file string) ([]byte, error) {
 	// Execute your command.
 	log.Printf("Making %v executable.", file)
 
-	_, err := c.Service.Run("Chmod +x /home/" + c.username + "/" + file)
+	_, err := c.Service.Run("chmod +x /home/" + c.username + "/" + file)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Printf("Runnning script on file %v", file)
 
-	out, err := c.Service.Run("Sudo /home/" + c.username + "/" + file)
+	out, err := c.Service.Run("sudo /home/" + c.username + "/" + file)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +108,7 @@ func (c Client) RunScript(file string) ([]byte, error) {
 func (c Client) Reboot() error {
 	log.Println("Rebooting.")
 
-	out, err := c.Service.Run("Sudo reboot -f")
+	out, err := c.Service.Run("sudo reboot -f")
 	if err != nil {
 		return err
 	}
