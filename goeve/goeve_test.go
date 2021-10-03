@@ -85,7 +85,7 @@ func TestConstructInstanceRequest(t *testing.T) {
 			name: "instance1",
 			want: &compute.Instance{
 				Name:                   "instance1",
-				Description:            "compute sample instance",
+				Description:            "eve-ng compute instance created by go-eve",
 				MinCpuPlatform:         "Intel Cascade Lake",
 				LastSuspendedTimestamp: "",
 				MachineType:            "https://www.googleapis.com/compute/v1/projects/testProject/zones/us-central1-a/machineTypes/c2-standard-4",
@@ -170,7 +170,7 @@ func TestConstructEveImage(t *testing.T) {
 					"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
 				},
 				SourceImage: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
-				DiskSizeGb: 10,
+				DiskSizeGb:  10,
 			},
 		},
 	}
