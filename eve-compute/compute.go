@@ -30,7 +30,7 @@ type computeService struct {
 	service *compute.Service
 }
 
-func NewClient() (ServiceFunctions, error) {
+func New() (ServiceFunctions, error) {
 	cs := computeService{}
 	ctx := context.Background()
 	service, err := initService(ctx)
@@ -42,19 +42,19 @@ func NewClient() (ServiceFunctions, error) {
 }
 
 func initService(ctx context.Context) (*compute.Service, error) {
-	client, err := google.DefaultClient(ctx, compute.ComputeScope)
+	c, err := google.DefaultClient(ctx, compute.ComputeScope)
 	if err != nil {
 		return nil, err
 	}
-	service, err := compute.New(client)
+	service, err := compute.New(c)
 	if err != nil {
 		return nil, err
 	}
 	return service, err
 }
 
-func (c computeService) IsImageCreated(projectID, imageName string) bool {
-	op, err := c.service.Images.Get(projectID, imageName).Do()
+func (c computeService) IsImageCreated(projectID, name string) bool {
+	op, err := c.service.Images.Get(projectID, name).Do()
 	if err != nil {
 		return false
 	}
@@ -86,25 +86,25 @@ func (c computeService) CreateImage(projectID string, image *compute.Image) erro
 	return nil
 }
 
-func (c computeService) DeleteImage(projectID, imageName string) error {
-	if created := c.IsImageCreated(projectID, imageName); created {
-		_, err := c.service.Images.Delete(projectID, imageName).Do()
+func (c computeService) DeleteImage(projectID, name string) error {
+	if created := c.IsImageCreated(projectID, name); created {
+		_, err := c.service.Images.Delete(projectID, name).Do()
 		if err != nil {
 			return err
 		}
-		log.Printf("deleted image: %v.", imageName)
+		log.Printf("deleted image: %v.", name)
 		return nil
 
 	}
-	log.Printf("image: %v was not deleted. Image not found.", imageName)
+	log.Printf("image: %v was not deleted. Image not found.", name)
 	return nil
 }
 
-func (c computeService) CreateInstance(projectID, zone string, instanceRequest *compute.Instance) error {
-	log.Printf("creating instance %v.", instanceRequest.Name)
-	status := c.InstanceStatus(projectID, zone, instanceRequest.Name)
+func (c computeService) CreateInstance(projectID, zone string, request *compute.Instance) error {
+	log.Printf("creating instance %v.", request.Name)
+	status := c.InstanceStatus(projectID, zone, request.Name)
 	if status == "" {
-		_, err := c.service.Instances.Insert(projectID, zone, instanceRequest).Do()
+		_, err := c.service.Instances.Insert(projectID, zone, request).Do()
 		if err != nil {
 			return err
 		}
@@ -113,30 +113,30 @@ func (c computeService) CreateInstance(projectID, zone string, instanceRequest *
 			s.Start()                                                   // Start the spinner
 			time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
 			s.Stop()
-			if status := c.InstanceStatus(projectID, zone, instanceRequest.Name); status == "RUNNING" {
+			if status := c.InstanceStatus(projectID, zone, request.Name); status == "RUNNING" {
 				return nil
 			}
 		}
 	}
 
-	log.Printf("compute instance %v already exist.", instanceRequest.Name)
+	log.Printf("compute instance %v already exist.", request.Name)
 	return nil
 }
-func (c computeService) isFirewallRuleExist(projectID, ruleName string) bool {
-	_, err := c.service.Firewalls.Get(projectID, ruleName).Do()
+func (c computeService) isFirewallRuleExist(projectID, name string) bool {
+	_, err := c.service.Firewalls.Get(projectID, name).Do()
 	if err != nil {
 		return false
 	}
 	return true
 }
-func (c computeService) InsertFirewallRule(projectID string, firewallRequest *compute.Firewall) error {
-	if created := c.isFirewallRuleExist(projectID, firewallRequest.Name); !created {
-		_, err := c.service.Firewalls.Insert(projectID, firewallRequest).Do()
+func (c computeService) InsertFirewallRule(projectID string, request *compute.Firewall) error {
+	if created := c.isFirewallRuleExist(projectID, request.Name); !created {
+		_, err := c.service.Firewalls.Insert(projectID, request).Do()
 		if err != nil {
 			return err
 		}
 	}
-	log.Printf("firewall rule %v already exist.", firewallRequest.Name)
+	log.Printf("firewall rule %v already exist.", request.Name)
 	return nil
 }
 
@@ -172,77 +172,77 @@ func (c computeService) GetExternalIP(projectID, zone, instanceName string) (net
 	return nil, nil
 }
 
-func (c computeService) InstanceStatus(projectID, zone, instanceName string) string {
-	found, _ := c.service.Instances.Get(projectID, zone, instanceName).Do()
+func (c computeService) InstanceStatus(projectID, zone, name string) string {
+	found, _ := c.service.Instances.Get(projectID, zone, name).Do()
 	if found != nil {
 		return found.Status
 	}
 	return ""
 }
 
-func (c computeService) DeleteInstance(projectID, zone, instanceName string) error {
-	if status := c.InstanceStatus(projectID, zone, instanceName); status != "" {
-		_, err := c.service.Instances.Delete(projectID, zone, instanceName).Do()
+func (c computeService) DeleteInstance(projectID, zone, name string) error {
+	if s := c.InstanceStatus(projectID, zone, name); s != "" {
+		_, err := c.service.Instances.Delete(projectID, zone, name).Do()
 		if err != nil {
 			return err
 		}
 		for {
-			log.Printf("deleting instance %v.", instanceName)
+			log.Printf("deleting instance %v.", name)
 			s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
 			s.Start()                                                   // Start the spinner
 			time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
 			s.Stop()
-			if status := c.InstanceStatus(projectID, zone, instanceName); status == "" {
+			if status := c.InstanceStatus(projectID, zone, name); status == "" {
 				return nil
 			}
 		}
 	}
-	log.Printf("compute instance %v was not deleted. Instance was not found.", instanceName)
+	log.Printf("compute instance %v was not deleted. Instance was not found.", name)
 	return nil
 }
 
-func (c computeService) StopInstance(projectID, zone, instanceName string) error {
-	status := c.InstanceStatus(projectID, zone, instanceName)
+func (c computeService) StopInstance(projectID, zone, name string) error {
+	status := c.InstanceStatus(projectID, zone, name)
 	if status == "RUNNING" {
-		_, err := c.service.Instances.Stop(projectID, zone, instanceName).Do()
+		_, err := c.service.Instances.Stop(projectID, zone, name).Do()
 		if err != nil {
 			return err
 		}
 		for {
-			log.Printf("stopping instance %v.", instanceName)
+			log.Printf("stopping instance %v.", name)
 			s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
 			s.Start()                                                   // Start the spinner
 			time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
 			s.Stop()
-			if status := c.InstanceStatus(projectID, zone, instanceName); status == "TERMINATED" {
-				log.Printf("instance %v stopped.", instanceName)
+			if status := c.InstanceStatus(projectID, zone, name); status == "TERMINATED" {
+				log.Printf("instance %v stopped.", name)
 				return nil
 			}
 		}
 
 	}
 	if status == "" {
-		log.Printf("Compute instance %v was not stop. Instance was not found.", instanceName)
+		log.Printf("Compute instance %v was not stop. Instance was not found.", name)
 		return nil
 
 	}
-	log.Printf("Compute instance %v was not stop. Instance is already shutdown.", instanceName)
+	log.Printf("Compute instance %v was not stop. Instance is already shutdown.", name)
 	return nil
 }
 
-func (c computeService) StartInstance(projectID, zone, instanceName string) error {
-	_, err := c.service.Instances.Start(projectID, zone, instanceName).Do()
+func (c computeService) StartInstance(projectID, zone, name string) error {
+	_, err := c.service.Instances.Start(projectID, zone, name).Do()
 	if err != nil {
 		return err
 	}
 	for {
-		log.Printf("Starting instance %v", instanceName)
+		log.Printf("Starting instance %v", name)
 		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
 		s.Start()                                                   // Start the spinner
 		time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
 		s.Stop()
-		if status := c.InstanceStatus(projectID, zone, instanceName); status == "RUNNING" {
-			log.Printf("Instance %v is running", instanceName)
+		if status := c.InstanceStatus(projectID, zone, name); status == "RUNNING" {
+			log.Printf("Instance %v is running", name)
 			break
 		}
 	}

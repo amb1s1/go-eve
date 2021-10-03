@@ -15,15 +15,15 @@ var (
 
 func setup(t *testing.T) (*Client, error) {
 	t.Helper()
-	client, err := NewClient("", testConfigFile, false)
+	c, err := New("", testConfigFile, false)
 	if err != nil {
 		return nil, err
 	}
-	return client, nil
+	return c, nil
 }
 
-func TestConstructFilewallRules(t *testing.T) {
-	client, err := setup(t)
+func TestFirewallRequest(t *testing.T) {
+	c, err := setup(t)
 	if err != nil {
 		t.Errorf("could not create a new goeve client, error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestConstructFilewallRules(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := client.constructFirewallRules(tc.direction)
+		got := c.firewallRequest(tc.direction)
 		if diff := cmp.Diff(tc.want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("ParseAccessString(%s) returned unexpected diff (-want +got):\n%s", tc.direction, diff)
 		}
@@ -70,8 +70,8 @@ func TestConstructFilewallRules(t *testing.T) {
 	}
 }
 
-func TestConstructInstanceRequest(t *testing.T) {
-	client, err := setup(t)
+func TestInstanceRequest(t *testing.T) {
+	c, err := setup(t)
 	if err != nil {
 		t.Errorf("could not create a new goeve client, error: %v", err)
 	}
@@ -145,15 +145,15 @@ func TestConstructInstanceRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := client.contructInstanceRequest()
+		got := c.instanceRequest()
 		if diff := cmp.Diff(tc.want, got); diff != "" {
 			t.Errorf("contructInstanceRequest() returned unexpected diff (-want +got):\n%s", diff)
 		}
 	}
 }
 
-func TestConstructEveImage(t *testing.T) {
-	client, err := setup(t)
+func TestImageRequest(t *testing.T) {
+	c, err := setup(t)
 	if err != nil {
 		t.Errorf("could not create a new goeve client, error: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestConstructEveImage(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := client.ConstructEveImage()
+		got := c.imageRequest()
 		if diff := cmp.Diff(tc.want, got); diff != "" {
 			t.Errorf("contructImageEveImage() returned unexpected diff (-want +got):\n%s", diff)
 
