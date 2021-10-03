@@ -5,6 +5,7 @@
 package goeve
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -216,16 +217,13 @@ func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
 	iFirewall := c.constructFirewallRules("INGRESS")
 	eFirewall := c.constructFirewallRules("EGRESS")
 	if c.createCustomEveNGImage {
-		imageCreated, err := service.IsImageCreated(c.ProjectID, c.CustomEveNGImageName)
-		if err != nil {
-			return err
-		}
+		imageCreated := service.IsImageCreated(c.ProjectID, c.CustomEveNGImageName)
 		if !imageCreated {
 			err := service.CreateImage(c.ProjectID, eveImage)
 			if err != nil {
 				return err
 			}
-
+			return nil
 		}
 		log.Printf("Custom Image name: %v is already created. Skipping new custom image creation.", c.CustomEveNGImageName)
 	}
@@ -285,49 +283,7 @@ func (c *Client) teardown(service evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance, stop, teardown bool) *status {
-	c, err := NewClient(instanceName, configFile, createCustomEveNGImage)
-	c.Status = &status{
-		Firewall: Firewalls{},
-	}
-	if err != nil {
-		log.Fatalf("could not create a new goeve client, error: %v", err)
-	}
-
-	service, err := evecompute.NewClient()
-	if err != nil {
-		log.Fatalf("Could not create a new google compute service, error: %v", err)
-	}
-
-	instanceStatus := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
-
-	if teardown {
-		err := c.teardown(service)
-		if err != nil {
-			log.Fatalf("could not teardown lab for compute instance %v, error: %v", c.InstanceName, err)
-		}
-		return c.Status
-	}
-
-	if stop {
-		if instanceStatus == "" {
-			log.Fatalf("Could not stop instance %v, instance does not exists", instanceName)
-		}
-		if instanceStatus == "TERMINATED" {
-			log.Fatalf("Could not stop instance %v, instance is not running", instanceName)
-		}
-		err := service.StopInstance(c.ProjectID, c.Zone, c.InstanceName)
-		if err != nil {
-			return nil
-		}
-
-		c.Status.Instance = "Stopped"
-		c.Status.Firewall.Egress = "Not modified"
-		c.Status.Firewall.Ingress = "Not modified"
-		c.Status.Settings = "Not modified"
-
-		return c.Status
-	}
+func (c *Client) create(instanceStatus string, resetInstance bool, service evecompute.ServiceFunctions) error {
 	if instanceStatus == "TERMINATED" {
 		log.Printf("instance %v is not running, starting instance", c.InstanceName)
 		err := service.StartInstance(c.ProjectID, c.Zone, c.InstanceName)
@@ -352,7 +308,7 @@ func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance,
 
 	if instanceStatus == "" {
 		if err := c.createInstance(service); err != nil {
-			log.Printf("could not create a new instance, error: %v", err)
+			log.Printf("createInstance() could not create a new instance, error: %v", err)
 		}
 		c.Status.Instance = "new instance " + c.InstanceName + " was created"
 	}
@@ -366,5 +322,60 @@ func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance,
 	if err := c.setupInstance(service, instanceStatus); err != nil {
 		log.Fatalf("could not setup the new instance, error: %v", err)
 	}
+	return nil
+}
+
+func (c *Client) stop(instanceStatus string, service evecompute.ServiceFunctions) error {
+	if instanceStatus == "" {
+		log.Fatalf("Could not stop instance %v, instance does not exists", c.InstanceName)
+	}
+	if instanceStatus == "TERMINATED" {
+		log.Fatalf("Could not stop instance %v, instance is not running", c.InstanceName)
+	}
+	err := service.StopInstance(c.ProjectID, c.Zone, c.InstanceName)
+	if err != nil {
+		return nil
+	}
+
+	c.Status.Instance = "Stopped"
+	c.Status.Firewall.Egress = "Not modified"
+	c.Status.Firewall.Ingress = "Not modified"
+	c.Status.Settings = "Not modified"
+	return nil
+}
+
+func Run(instanceName, configFile string, createCustomEveNGImage, createLab, resetInstance, stop, teardown bool) *status {
+	c, err := NewClient(instanceName, configFile, createCustomEveNGImage)
+	c.Status = &status{
+		Firewall: Firewalls{},
+	}
+	if err != nil {
+		log.Fatalf("could not create a new goeve client, error: %v", err)
+	}
+
+	service, err := evecompute.NewClient()
+	if err != nil {
+		log.Fatalf("Could not create a new google compute service, error: %v", err)
+	}
+
+	instanceStatus := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
+
+	switch {
+	case teardown:
+		if err := c.teardown(service); err != nil {
+			log.Fatalf("could not teardown lab for compute instance %v, error: %v", c.InstanceName, err)
+		}
+	case stop:
+		if err := c.stop(instanceStatus, service); err != nil {
+			fmt.Printf("Could not stop compute instance %v, error: %v", c.InstanceName, err)
+		}
+	case createLab:
+		if err := c.create(instanceStatus, resetInstance, service); err != nil {
+			fmt.Printf("Could not ")
+		}
+
+	}
+
 	return c.Status
+
 }

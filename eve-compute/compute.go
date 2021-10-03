@@ -12,7 +12,7 @@ import (
 )
 
 type ServiceFunctions interface {
-	IsImageCreated(string, string) (bool, error)
+	IsImageCreated(string, string) bool
 	CreateImage(string, *compute.Image) error
 	DeleteImage(string, string) error
 	CreateInstance(string, string, *compute.Instance) error
@@ -52,15 +52,15 @@ func initService(ctx context.Context) (*compute.Service, error) {
 	return service, err
 }
 
-func (c computeService) IsImageCreated(projectID, imageName string) (bool, error) {
+func (c computeService) IsImageCreated(projectID, imageName string) bool {
 	op, err := c.service.Images.Get(projectID, imageName).Do()
 	if err != nil {
-		return false, err
+		return false
 	}
 	if op.Status == "READY" {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 func (c computeService) CreateImage(projectID string, image *compute.Image) error {
@@ -71,8 +71,7 @@ func (c computeService) CreateImage(projectID string, image *compute.Image) erro
 
 	for {
 		time.Sleep(10 * time.Second)
-		op, err := c.service.Images.Get(projectID, image.Name).Do()
-		log.Printf("Error: %v", err)
+		op, _ := c.service.Images.Get(projectID, image.Name).Do()
 		log.Printf("Operation: %v", op.Status)
 		log.Printf("creating new image %v status is: %v", image.Name, op.Status)
 		if op.Status != "PENDING" {
