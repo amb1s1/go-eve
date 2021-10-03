@@ -44,6 +44,8 @@ type Client struct {
 	SSHPrivateKeyFileName  string `yaml:"sshPrivateKeyFileName"`
 	SSHKeyUsername         string `yaml:"sshKeyUsername"`
 	CustomEveNGImageName   string `yaml:"customEveNGImageName"`
+	MachineType            string `yaml:"machineType"`
+	DiskSize               int64  `yaml:"diskSize"`
 	createCustomEveNGImage bool
 	Status                 *status
 }
@@ -107,9 +109,9 @@ func (c *Client) contructInstanceRequest() *compute.Instance {
 
 	instance := &compute.Instance{
 		Name:           c.InstanceName,
-		Description:    "compute sample instance",
+		Description:    "eve-ng compute instance created by go-eve",
 		MinCpuPlatform: "Intel Cascade Lake",
-		MachineType:    prefix + "/zones/" + c.Zone + "/machineTypes/c2-standard-4",
+		MachineType:    prefix + "/zones/" + c.Zone + "/machineTypes/" + strings.ToLower(c.MachineType),
 		CanIpForward:   true,
 		Tags: &compute.Tags{
 			Items: []string{
@@ -172,7 +174,7 @@ func (c *Client) ConstructEveImage() *compute.Image {
 			"https://www.google.com/compute/v1/projects/vm-options/global/licenses/enable-vmx",
 		},
 		SourceImage: "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20210429",
-		DiskSizeGb:  10,
+		DiskSizeGb:  c.DiskSize,
 	}
 	return image
 }
