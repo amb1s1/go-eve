@@ -262,7 +262,30 @@ func (c *Client) setupInstance(service evecompute.ServiceFunctions, instanceStat
 	return nil
 }
 
-func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance bool, stop bool) *status {
+func (c *Client) teardown(service evecompute.ServiceFunctions) error {
+	err := service.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName)
+	if err != nil {
+		return err
+	}
+	c.Status.Instance = "Deleted"
+	c.Status.Settings = "Gone with the Instance"
+
+	err = service.DeleteFirewallRules(c.ProjectID)
+	if err != nil {
+		return err
+	}
+	c.Status.Firewall.Egress = "Deleted"
+	c.Status.Firewall.Ingress = "Deleted"
+
+	err = service.DeleteImage(c.ProjectID, c.CustomEveNGImageName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance, stop, teardown bool) *status {
 	c, err := NewClient(instanceName, configFile, createCustomEveNGImage)
 	c.Status = &status{
 		Firewall: Firewalls{},
@@ -277,6 +300,14 @@ func Run(instanceName, configFile string, createCustomEveNGImage, resetInstance 
 	}
 
 	instanceStatus := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
+
+	if teardown {
+		err := c.teardown(service)
+		if err != nil {
+			log.Fatalf("could not teardown lab for compute instance %v, error: %v", c.InstanceName, err)
+		}
+		return c.Status
+	}
 
 	if stop {
 		if instanceStatus == "" {

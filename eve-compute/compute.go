@@ -14,8 +14,10 @@ import (
 type ServiceFunctions interface {
 	IsImageCreated(string, string) (bool, error)
 	CreateImage(string, *compute.Image) error
+	DeleteImage(string, string) error
 	CreateInstance(string, string, *compute.Instance) error
 	InsertFireWallRule(string, *compute.Firewall) error
+	DeleteFirewallRules(string) error
 	GetExternalIP(string, string, string) (net.Addr, error)
 	InstanceStatus(string, string, string) string
 	DeleteInstance(string, string, string) error
@@ -81,6 +83,15 @@ func (c computeService) CreateImage(projectID string, image *compute.Image) erro
 	return nil
 }
 
+func (c computeService) DeleteImage(projectID, imageName string) error {
+	_, err := c.service.Images.Delete(projectID, imageName).Do()
+	if err != nil {
+		return err
+	}
+	log.Printf("Deleted image: %v", imageName)
+	return nil
+}
+
 func (c computeService) CreateInstance(projectID, zone string, instanceRequest *compute.Instance) error {
 	_, err := c.service.Instances.Insert(projectID, zone, instanceRequest).Do()
 	if err != nil {
@@ -93,6 +104,19 @@ func (c computeService) InsertFireWallRule(projectID string, firewallRequest *co
 	_, err := c.service.Firewalls.Insert(projectID, firewallRequest).Do()
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c computeService) DeleteFirewallRules(projectID string) error {
+	for _, f := range []string{"ingress-eve", "egress-eve"} {
+		log.Printf("Deleting firewall rule: %v", f)
+		_, err := c.service.Firewalls.Delete(projectID, f).Do()
+		if err != nil {
+			return err
+		}
+		log.Printf("Deleted firewall rule: %v", f)
+
 	}
 	return nil
 }
