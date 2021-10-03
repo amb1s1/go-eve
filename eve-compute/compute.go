@@ -17,7 +17,7 @@ type ServiceFunctions interface {
 	CreateImage(string, *compute.Image) error
 	DeleteImage(string, string) error
 	CreateInstance(string, string, *compute.Instance) error
-	InsertFireWallRule(string, *compute.Firewall) error
+	InsertFirewallRule(string, *compute.Firewall) error
 	DeleteFirewallRules(string) error
 	GetExternalIP(string, string, string) (net.Addr, error)
 	InstanceStatus(string, string, string) string
@@ -65,7 +65,7 @@ func (c computeService) IsImageCreated(projectID, imageName string) bool {
 }
 
 func (c computeService) CreateImage(projectID string, image *compute.Image) error {
-	log.Printf("creating new image %v", image.Name)
+	log.Printf("creating new image %v.", image.Name)
 	_, err := c.service.Images.Insert(projectID, image).Do()
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (c computeService) CreateImage(projectID string, image *compute.Image) erro
 		time.Sleep(10 * time.Second)
 		s.Stop()
 		op, _ := c.service.Images.Get(projectID, image.Name).Do()
-		log.Printf("creating new image %v status is: %v", image.Name, op.Status)
+		log.Printf("creating new image %v status is: %v.", image.Name, op.Status)
 		if op.Status != "PENDING" {
 			break
 		}
@@ -92,16 +92,16 @@ func (c computeService) DeleteImage(projectID, imageName string) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("Deleted image: %v", imageName)
+		log.Printf("deleted image: %v.", imageName)
 		return nil
 
 	}
-	log.Printf("Image: %v was not deleted. Image not found.", imageName)
+	log.Printf("image: %v was not deleted. Image not found.", imageName)
 	return nil
 }
 
 func (c computeService) CreateInstance(projectID, zone string, instanceRequest *compute.Instance) error {
-	log.Printf("creating instance %v", instanceRequest.Name)
+	log.Printf("creating instance %v.", instanceRequest.Name)
 	status := c.InstanceStatus(projectID, zone, instanceRequest.Name)
 	if status == "" {
 		_, err := c.service.Instances.Insert(projectID, zone, instanceRequest).Do()
@@ -119,7 +119,7 @@ func (c computeService) CreateInstance(projectID, zone string, instanceRequest *
 		}
 	}
 
-	log.Printf("Compute instance %v already exist", instanceRequest.Name)
+	log.Printf("compute instance %v already exist.", instanceRequest.Name)
 	return nil
 }
 func (c computeService) isFirewallRuleExist(projectID, ruleName string) bool {
@@ -129,44 +129,45 @@ func (c computeService) isFirewallRuleExist(projectID, ruleName string) bool {
 	}
 	return true
 }
-func (c computeService) InsertFireWallRule(projectID string, firewallRequest *compute.Firewall) error {
+func (c computeService) InsertFirewallRule(projectID string, firewallRequest *compute.Firewall) error {
 	if created := c.isFirewallRuleExist(projectID, firewallRequest.Name); !created {
 		_, err := c.service.Firewalls.Insert(projectID, firewallRequest).Do()
 		if err != nil {
 			return err
 		}
 	}
-	log.Printf("Firewall rule %v already exist", firewallRequest.Name)
+	log.Printf("firewall rule %v already exist.", firewallRequest.Name)
 	return nil
 }
 
 func (c computeService) DeleteFirewallRules(projectID string) error {
 	for _, f := range []string{"ingress-eve", "egress-eve"} {
 		if exist := c.isFirewallRuleExist(projectID, f); exist {
-			log.Printf("Deleting firewall rule: %v", f)
+			log.Printf("deleting firewall rule: %v.", f)
 			_, err := c.service.Firewalls.Delete(projectID, f).Do()
 			if err != nil {
 				return err
 			}
-			log.Printf("Deleted firewall rule: %v", f)
+			log.Printf("deleted firewall rule: %v.", f)
 			break
 
 		}
-		log.Printf("Firewall rule: %v was not deleted. Rule not found.", f)
+		log.Printf("firewall rule: %v was not deleted. Rule not found.", f)
 
 	}
 	return nil
 }
 
 func (c computeService) GetExternalIP(projectID, zone, instanceName string) (net.Addr, error) {
-	log.Println("looking for the instance NatIP")
+	log.Println("looking for the instance external ip.")
 	found, _ := c.service.Instances.Get(projectID, zone, instanceName).Do()
 	for _, i := range found.NetworkInterfaces {
-		nat, err := net.ResolveIPAddr("ip", i.AccessConfigs[len(i.AccessConfigs)-1].NatIP)
+		ip, err := net.ResolveIPAddr("ip", i.AccessConfigs[len(i.AccessConfigs)-1].NatIP)
 		if err != nil {
 			return nil, err
 		}
-		return nat, nil
+		log.Printf("got external ip %v for the compute instance %v.", ip, instanceName)
+		return ip, nil
 	}
 	return nil, nil
 }
@@ -186,7 +187,7 @@ func (c computeService) DeleteInstance(projectID, zone, instanceName string) err
 			return err
 		}
 		for {
-			log.Printf("deleting instance %v", instanceName)
+			log.Printf("deleting instance %v.", instanceName)
 			s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
 			s.Start()                                                   // Start the spinner
 			time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
@@ -196,7 +197,7 @@ func (c computeService) DeleteInstance(projectID, zone, instanceName string) err
 			}
 		}
 	}
-	log.Printf("Compute instance %v was not deleted. Instance was not found.", instanceName)
+	log.Printf("compute instance %v was not deleted. Instance was not found.", instanceName)
 	return nil
 }
 
@@ -208,13 +209,13 @@ func (c computeService) StopInstance(projectID, zone, instanceName string) error
 			return err
 		}
 		for {
-			log.Printf("Stopping instance %v", instanceName)
+			log.Printf("stopping instance %v.", instanceName)
 			s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
 			s.Start()                                                   // Start the spinner
 			time.Sleep(8 * time.Second)                                 // Run for some time to simulate work
 			s.Stop()
 			if status := c.InstanceStatus(projectID, zone, instanceName); status == "TERMINATED" {
-				log.Printf("Instance %v stopped", instanceName)
+				log.Printf("instance %v stopped.", instanceName)
 				return nil
 			}
 		}

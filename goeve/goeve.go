@@ -5,6 +5,7 @@
 package goeve
 
 import (
+	"errors"
 	"io/ioutil"
 	"log"
 	"net"
@@ -72,7 +73,7 @@ func NewClient(instanceName, oConfigFile string, createCustomEveNGImage bool) (*
 }
 
 func (c *Client) constructFirewallRules(direction string) *compute.Firewall {
-	log.Printf("constructing the firewall rule %v", direction)
+	log.Printf("constructing the firewall rule %v.", direction)
 	rule := &compute.Firewall{
 		Kind:      "compute#firewall",
 		Name:      strings.ToLower(direction) + "-eve",
@@ -197,7 +198,7 @@ func (c *Client) InitialSetup(publicKey, privateKey, username string, ip net.Add
 		}
 		err = client.Fetch(f)
 		if err != nil {
-			log.Println(err)
+			return err
 		}
 
 		out, err := client.RunScript(f)
@@ -205,9 +206,9 @@ func (c *Client) InitialSetup(publicKey, privateKey, username string, ip net.Add
 			return err
 		}
 		if string(out) == "VM is alredy configured\n" {
-			log.Println(string(out))
+			log.Println(strings.ToLower(string(out)))
 			c.Status.Settings = "not modified"
-			break
+			return nil
 		}
 		client.Reboot()
 		time.Sleep(60 * time.Second)
@@ -227,7 +228,7 @@ func (c *Client) createImage(service evecompute.ServiceFunctions) error {
 		}
 		return nil
 	}
-	log.Printf("Custom Image name: %v is already created. Skipping new custom image creation.", c.CustomEveNGImageName)
+	log.Printf("custom image name: %v is already created. Skipping new custom image creation.", c.CustomEveNGImageName)
 
 	return nil
 }
@@ -241,16 +242,16 @@ func (c *Client) createInstance(service evecompute.ServiceFunctions) error {
 		return err
 	}
 
-	err = service.InsertFireWallRule(c.ProjectID, iFirewall)
+	err = service.InsertFirewallRule(c.ProjectID, iFirewall)
 	if err != nil {
 		c.Status.Firewall.Ingress = "not modified"
-		log.Println(err)
+		return err
 	}
 
-	err = service.InsertFireWallRule(c.ProjectID, eFirewall)
+	err = service.InsertFirewallRule(c.ProjectID, eFirewall)
 	if err != nil {
 		c.Status.Firewall.Egress = "not modified"
-		log.Println(err)
+		return err
 	}
 	return nil
 
@@ -341,10 +342,10 @@ func (c *Client) create(service evecompute.ServiceFunctions) error {
 
 func (c *Client) stop(instanceStatus string, service evecompute.ServiceFunctions) error {
 	if instanceStatus == "" {
-		log.Fatalf("Could not stop instance %v, instance does not exists", c.InstanceName)
+		return errors.New("compute instance does not exists.")
 	}
 	if instanceStatus == "TERMINATED" {
-		log.Fatalf("Could not stop instance %v, instance is not running", c.InstanceName)
+		return errors.New("compute instance is not running.")
 	}
 	err := service.StopInstance(c.ProjectID, c.Zone, c.InstanceName)
 	if err != nil {
@@ -364,12 +365,12 @@ func Run(instanceName, configFile string, createCustomEveNGImage, createLab, res
 		Firewall: Firewalls{},
 	}
 	if err != nil {
-		log.Fatalf("could not create a new goeve client, error: %v", err)
+		log.Fatalf("could not create a new goeve client, error: %v.", err)
 	}
 
 	service, err := evecompute.NewClient()
 	if err != nil {
-		log.Fatalf("Could not create a new google compute service, error: %v", err)
+		log.Fatalf("could not create a new compute service, error: %v.", err)
 	}
 
 	instanceStatus := service.InstanceStatus(c.ProjectID, c.Zone, c.InstanceName)
@@ -377,19 +378,19 @@ func Run(instanceName, configFile string, createCustomEveNGImage, createLab, res
 	switch {
 	case stop:
 		if err := c.stop(instanceStatus, service); err != nil {
-			log.Fatalf("Could not stop compute instance %v, error: %v", c.InstanceName, err)
+			log.Fatalf("could not stop compute instance %v, error: %v.", c.InstanceName, err)
 		}
 	case resetInstance:
 		if err := c.resetInstance(service); err != nil {
-			log.Fatalf("Could not reset instance %v, error: %v", c.InstanceName, err)
+			log.Fatalf("could not reset instance %v, error: %v.", c.InstanceName, err)
 		}
 	case teardown:
 		if err := c.teardown(service); err != nil {
-			log.Fatalf("could not teardown lab for compute instance %v, error: %v", c.InstanceName, err)
+			log.Fatalf("could not teardown lab for compute instance %v, error: %v.", c.InstanceName, err)
 		}
 	case createLab:
 		if err := c.create(service); err != nil {
-			log.Fatalf("Could not create an entire lab, error: %v", err)
+			log.Fatalf("could not create an entire lab, error: %v.", err)
 		}
 	}
 

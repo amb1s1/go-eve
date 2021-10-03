@@ -48,7 +48,7 @@ func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 	}
 	rCount := 0
 	for {
-		log.Printf("ssh to: %v", ip)
+		log.Printf("ssh to: %v.", ip)
 		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
 		s.Start()
 		time.Sleep(20 * time.Second)
@@ -57,18 +57,18 @@ func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 		if err != nil {
 			rCount += 1
 		} else {
-			log.Printf("connected to: %v", ip.String())
+			log.Printf("connected to: %v.", ip.String())
 			return client, nil
 		}
 		if rCount >= 3 {
-			return nil, fmt.Errorf("could not connect to %v, error: %v", ip.String(), err)
+			return nil, fmt.Errorf("could not connect to %v, error: %v.", ip.String(), err)
 		}
 	}
 }
 
 func (c Client) Fetch(file string) error {
 	dir, _ := os.Getwd()
-	log.Printf("fetching file %v to server %v", file, c.ip.String())
+	log.Printf("fetching file %v to server %v.", file, c.ip.String())
 	err := c.Service.Upload(dir+"/"+file, "/home/"+c.username+"/"+file)
 	if err != nil {
 		return err
@@ -78,12 +78,12 @@ func (c Client) Fetch(file string) error {
 
 func (c Client) RunScript(file string) ([]byte, error) {
 	// Execute your command.
-	log.Printf("making %v executable...", file)
+	log.Printf("making %v executable.", file)
 	_, err := c.Service.Run("chmod +x /home/" + c.username + "/" + file)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("runnning script on file %v ...", file)
+	log.Printf("runnning script on file %v.", file)
 	out, err := c.Service.Run("sudo /home/" + c.username + "/" + file)
 	if err != nil {
 		return nil, err
@@ -93,9 +93,9 @@ func (c Client) RunScript(file string) ([]byte, error) {
 }
 
 func (c Client) Reboot() error {
-	log.Println("rebooting....")
+	log.Println("rebooting.")
 	out, err := c.Service.Run("sudo reboot -f")
-	log.Printf("Reboot Out: %v", string(out))
+	log.Printf("reboot status: %v", string(out))
 	if err != nil {
 		return err
 	}
