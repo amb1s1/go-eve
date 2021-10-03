@@ -5,7 +5,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/melbahja/goph"
 )
 
@@ -39,19 +41,29 @@ func NewClient(publicKey, privateKey, username string, ip net.Addr) (connectFunc
 	return c, nil
 }
 func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
-	log.Printf("ssh to: %v", ip)
 	// Start new ssh connection with private key.
 	priKey, err := goph.Key(privateKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get privateKey: %v error: %v", privateKey, err)
 	}
-
-	client, err := goph.NewUnknown(username, ip.String(), priKey)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to %v, error: %v", ip, err)
+	rCount := 0
+	for {
+		log.Printf("ssh to: %v", ip)
+		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
+		s.Start()
+		time.Sleep(20 * time.Second)
+		s.Stop()
+		client, err := goph.NewUnknown(username, ip.String(), priKey)
+		if err != nil {
+			rCount += 1
+		} else {
+			log.Printf("connected to: %v", ip.String())
+			return client, nil
+		}
+		if rCount >= 3 {
+			return nil, fmt.Errorf("could not connect to %v, error: %v", ip.String(), err)
+		}
 	}
-	return client, nil
-
 }
 
 func (c Client) Fetch(file string) error {
