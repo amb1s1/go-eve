@@ -17,6 +17,7 @@ type connectFunctons interface {
 	Reboot() error
 }
 
+// Client represents a ssh gph.Client.
 type Client struct {
 	ip         net.Addr
 	publicKey  string
@@ -25,8 +26,9 @@ type Client struct {
 	Service    *goph.Client
 }
 
+// NewClient construct a new ssh client connetion.
 func NewClient(publicKey, privateKey, username string, ip net.Addr) (connectFunctons, error) {
-	s, err := Connect(privateKey, username, ip)
+	s, err := connect(privateKey, username, ip)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +44,7 @@ func NewClient(publicKey, privateKey, username string, ip net.Addr) (connectFunc
 	return c, nil
 }
 
-func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
+func connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 	// Start new ssh connection with private key.
 	priKey, err := goph.Key(privateKey, "")
 	if err != nil {
@@ -72,6 +74,7 @@ func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 	}
 }
 
+// Fetch handles uploading files to the remote server.
 func (c Client) Fetch(file string) error {
 	dir, _ := os.Getwd()
 
@@ -86,6 +89,7 @@ func (c Client) Fetch(file string) error {
 	return nil
 }
 
+// RunScript runs script on the remote compute instance.
 func (c Client) RunScript(file string) ([]byte, error) {
 	// Execute your command.
 	log.Printf("Making %v executable.", file)
@@ -105,6 +109,7 @@ func (c Client) RunScript(file string) ([]byte, error) {
 	return out, nil
 }
 
+//Reboot handles the rebooting of the remote compute instance.
 func (c Client) Reboot() error {
 	log.Println("Rebooting.")
 

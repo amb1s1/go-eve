@@ -24,17 +24,19 @@ var (
 	fwDirections = []string{"INGRESS", "EGRESS"}
 )
 
-type Firewalls struct {
+type firewalls struct {
 	Ingress string
 	Egress  string
 }
-type status struct {
+
+// Status is the representation of the final tool run state.
+type Status struct {
 	Instance string
 	Settings string
-	Firewall Firewalls
+	Firewall firewalls
 }
 
-type Client struct {
+type client struct {
 	ProjectID         string `yaml:"projectID"`
 	InstanceName      string `yaml:"instanceName"`
 	Zone              string `yaml:"zone"`
@@ -45,11 +47,11 @@ type Client struct {
 	MachineType       string `yaml:"machineType"`
 	DiskSize          int64  `yaml:"diskSize"`
 	createCustomImage bool
-	Status            *status
+	Status            *Status
 }
 
-func New(instanceName, orideConfigFile string, createCustomImage bool) (*Client, error) {
-	c := &Client{}
+func new(instanceName, orideConfigFile string, createCustomImage bool) (*client, error) {
+	c := &client{}
 
 	if orideConfigFile != "" {
 		configFile = orideConfigFile
@@ -73,7 +75,7 @@ func New(instanceName, orideConfigFile string, createCustomImage bool) (*Client,
 	return c, nil
 }
 
-func (c *Client) firewallRequest(direction string) *compute.Firewall {
+func (c *client) firewallRequest(direction string) *compute.Firewall {
 	log.Printf("Constructing the firewall rule %v", direction)
 
 	r := &compute.Firewall{
@@ -106,7 +108,7 @@ func (c *Client) firewallRequest(direction string) *compute.Firewall {
 	return r
 }
 
-func (c *Client) instanceRequest() *compute.Instance {
+func (c *client) instanceRequest() *compute.Instance {
 	log.Println("Constructing instance request")
 
 	prefix := "https://www.googleapis.com/compute/v1/projects/" + c.ProjectID
@@ -171,7 +173,7 @@ func (c *Client) instanceRequest() *compute.Instance {
 
 }
 
-func (c *Client) imageRequest() *compute.Image {
+func (c *client) imageRequest() *compute.Image {
 	log.Println("Constructing image request")
 
 	r := &compute.Image{
@@ -186,7 +188,7 @@ func (c *Client) imageRequest() *compute.Image {
 	return r
 }
 
-func (c *Client) readSSHKey() []byte {
+func (c *client) readSSHKey() []byte {
 	log.Println("Reading ssh key")
 
 	f, err := ioutil.ReadFile(c.PublicKeyPath)
@@ -198,7 +200,7 @@ func (c *Client) readSSHKey() []byte {
 
 }
 
-func (c *Client) initialSetup(publicKey, privateKey, username string, ip net.Addr) error {
+func (c *client) initialSetup(publicKey, privateKey, username string, ip net.Addr) error {
 	log.Println("Initializing eve-go settings")
 
 	for _, f := range bashFiles {
@@ -231,7 +233,7 @@ func (c *Client) initialSetup(publicKey, privateKey, username string, ip net.Add
 	return nil
 }
 
-func (c *Client) createImage(s evecompute.ServiceFunctions) error {
+func (c *client) createImage(s evecompute.ServiceFunctions) error {
 	r := c.imageRequest()
 
 	if imageCreated := s.IsImageCreated(c.ProjectID, c.CustomImageName); !imageCreated { // image not created
@@ -247,7 +249,7 @@ func (c *Client) createImage(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) createInstance(s evecompute.ServiceFunctions) error {
+func (c *client) createInstance(s evecompute.ServiceFunctions) error {
 	r := c.instanceRequest()
 
 	if err := s.CreateInstance(c.ProjectID, c.Zone, r); err != nil {
@@ -257,7 +259,7 @@ func (c *Client) createInstance(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) createFirewallRules(s evecompute.ServiceFunctions) error {
+func (c *client) createFirewallRules(s evecompute.ServiceFunctions) error {
 	for _, f := range fwDirections {
 		fr := c.firewallRequest(f)
 
@@ -278,7 +280,7 @@ func (c *Client) createFirewallRules(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) setupInstance(s evecompute.ServiceFunctions) error {
+func (c *client) setupInstance(s evecompute.ServiceFunctions) error {
 	log.Println("Seting instance")
 
 	ip, err := s.LookupExternalIP(c.ProjectID, c.Zone, c.InstanceName)
@@ -293,7 +295,7 @@ func (c *Client) setupInstance(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) teardown(s evecompute.ServiceFunctions) error {
+func (c *client) teardown(s evecompute.ServiceFunctions) error {
 	if err := s.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName); err != nil {
 		return err
 	}
@@ -315,7 +317,7 @@ func (c *Client) teardown(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) resetInstance(s evecompute.ServiceFunctions) error {
+func (c *client) resetInstance(s evecompute.ServiceFunctions) error {
 	if err := s.DeleteInstance(c.ProjectID, c.Zone, c.InstanceName); err != nil {
 		return err
 	}
@@ -327,7 +329,7 @@ func (c *Client) resetInstance(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) create(s evecompute.ServiceFunctions) error {
+func (c *client) create(s evecompute.ServiceFunctions) error {
 	log.Println("Create, start the workflow for creating a new compute instance")
 
 	if c.createCustomImage {
@@ -366,7 +368,7 @@ func (c *Client) create(s evecompute.ServiceFunctions) error {
 	return nil
 }
 
-func (c *Client) stop(status string, s evecompute.ServiceFunctions) error {
+func (c *client) stop(status string, s evecompute.ServiceFunctions) error {
 	if status == "" {
 		return errors.New("compute instance does not exists")
 	}
@@ -387,8 +389,9 @@ func (c *Client) stop(status string, s evecompute.ServiceFunctions) error {
 	return nil
 }
 
+// Run handler the start of the creation, resetInstance, stop and teardown logic.
 func Run(instanceName, configFile string, createCustomImage, createLab, resetInstance, stop, teardown bool) *status {
-	c, err := New(instanceName, configFile, createCustomImage)
+	c, err := new(instanceName, configFile, createCustomImage)
 	if err != nil {
 		log.Fatalf("Could not create a new goeve client, error: %v", err)
 	}

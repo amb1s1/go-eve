@@ -14,7 +14,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-//
+// ServiceFunctions defines the ServiceFunctions operation for cloud service.
 type ServiceFunctions interface {
 	IsImageCreated(string, string) bool
 	CreateImage(string, *compute.Image) error
