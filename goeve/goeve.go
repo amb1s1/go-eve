@@ -9,12 +9,10 @@ import (
 	"time"
 
 	"github.com/amb1s1/go-eve/connect"
-
-	evecompute "github.com/amb1s1/go-eve/eve-compute"
-
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v2"
 
+	evecompute "github.com/amb1s1/go-eve/eve-compute"
 	compute "google.golang.org/api/compute/v1"
 )
 
@@ -225,7 +223,9 @@ func (c *client) initialSetup(publicKey, privateKey, username string, ip net.Add
 			return nil
 		}
 		time.Sleep(60 * time.Second)
-		sc.Reboot()
+		if err := sc.Reboot(); err != nil {
+			return err
+		}
 	}
 
 	c.Status.Settings = "configured"

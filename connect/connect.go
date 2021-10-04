@@ -11,7 +11,8 @@ import (
 	"github.com/melbahja/goph"
 )
 
-type connectFunctons interface {
+// Functions all the operation for setting the compute instance.
+type Functions interface {
 	Fetch(string) error
 	RunScript(string) ([]byte, error)
 	Reboot() error
@@ -27,8 +28,8 @@ type Client struct {
 }
 
 // NewClient construct a new ssh client connetion.
-func NewClient(publicKey, privateKey, username string, ip net.Addr) (connectFunctons, error) {
-	s, err := connect(privateKey, username, ip)
+func NewClient(publicKey, privateKey, username string, ip net.Addr) (Functions, error) {
+	s, err := Connect(privateKey, username, ip)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +45,8 @@ func NewClient(publicKey, privateKey, username string, ip net.Addr) (connectFunc
 	return c, nil
 }
 
-func connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
+// Connect handle the ssh connetion to the remote compute instance.
+func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 	// Start new ssh connection with private key.
 	priKey, err := goph.Key(privateKey, "")
 	if err != nil {
@@ -62,7 +64,7 @@ func connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 
 		client, err := goph.NewUnknown(username, ip.String(), priKey)
 		if err != nil {
-			c += 1
+			c++
 		} else {
 			log.Printf("Connected to: %v", ip.String())
 			return client, nil

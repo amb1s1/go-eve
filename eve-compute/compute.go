@@ -204,7 +204,6 @@ func (c computeService) LookupExternalIP(projectID, zone, instanceName string) (
 		ip, err := net.ResolveIPAddr("ip", i.AccessConfigs[len(i.AccessConfigs)-1].NatIP)
 		if err != nil {
 			return nil, err
-
 		}
 		log.Printf("got external ip %v for the compute instance %v.", ip, instanceName)
 

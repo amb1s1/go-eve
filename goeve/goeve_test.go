@@ -3,10 +3,11 @@ package goeve
 import (
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	compute "google.golang.org/api/compute/v1"
 )
 
 var (
