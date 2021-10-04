@@ -158,7 +158,7 @@ func isFirewallRuleExist(projectID, name string, c computeService) bool {
 	return true
 }
 
-// InsertFirewallRule inserts a fule rule into the google cloud project.
+// InsertFirewallRule inserts a file rule into the google cloud project.
 func (c computeService) InsertFirewallRule(projectID string, request *compute.Firewall) error {
 	if created := isFirewallRuleExist(projectID, request.Name, c); !created {
 		_, err := c.service.Firewalls.Insert(projectID, request).Do()

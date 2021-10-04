@@ -27,7 +27,7 @@ type Client struct {
 	Service    *goph.Client
 }
 
-// NewClient construct a new ssh client connetion.
+// NewClient construct a new ssh client connection.
 func NewClient(publicKey, privateKey, username string, ip net.Addr) (Functions, error) {
 	s, err := Connect(privateKey, username, ip)
 	if err != nil {
@@ -45,7 +45,7 @@ func NewClient(publicKey, privateKey, username string, ip net.Addr) (Functions, 
 	return c, nil
 }
 
-// Connect handle the ssh connetion to the remote compute instance.
+// Connect handle the ssh connection to the remote compute instance.
 func Connect(privateKey, username string, ip net.Addr) (*goph.Client, error) {
 	// Start new ssh connection with private key.
 	priKey, err := goph.Key(privateKey, "")
@@ -101,7 +101,7 @@ func (c Client) RunScript(file string) ([]byte, error) {
 		return nil, err
 	}
 
-	log.Printf("Runnning script on file %v", file)
+	log.Printf("Running script on file %v", file)
 
 	out, err := c.Service.Run("sudo /home/" + c.username + "/" + file)
 	if err != nil {

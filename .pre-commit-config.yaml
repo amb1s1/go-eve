@@ -8,8 +8,11 @@ repos:
     - id: go-imports
     - id: go-cyclo
       args: [-over=15]
-    - id: validate-toml
-    - id: no-go-testing
     - id: go-unit-tests
     - id: go-build
     - id: go-mod-tidy
+
+- repo: git://github.com/codespell-project/codespell
+  rev: b2e96b267e965ea09423c05c98a9f13884bfb116
+  hooks:
+    - id: codespell

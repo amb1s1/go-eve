@@ -216,7 +216,7 @@ func (c *client) initialSetup(publicKey, privateKey, username string, ip net.Add
 			return err
 		}
 
-		if string(out) == "VM is alredy configured\n" {
+		if string(out) == "VM is already configured\n" {
 			log.Println(strings.ToLower(string(out)))
 			c.Status.Settings = "not modified"
 
@@ -281,7 +281,7 @@ func (c *client) createFirewallRules(s evecompute.ServiceFunctions) error {
 }
 
 func (c *client) setupInstance(s evecompute.ServiceFunctions) error {
-	log.Println("Seting instance")
+	log.Println("Setting instance")
 
 	ip, err := s.LookupExternalIP(c.ProjectID, c.Zone, c.InstanceName)
 	if err != nil {

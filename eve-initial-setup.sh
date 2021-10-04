@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check if VM is alredy configured
+# Check if VM is already configured
 if [[ -e /opt/ovf/.configured ]]; then
     exit
 fi
