@@ -13,9 +13,9 @@ var (
 	testConfigFile = "../testdata/test_config.yaml"
 )
 
-func setup(t *testing.T) (*Client, error) {
+func setup(t *testing.T) (*client, error) {
 	t.Helper()
-	c, err := New("", testConfigFile, false)
+	c, err := new("", testConfigFile, false)
 	if err != nil {
 		return nil, err
 	}

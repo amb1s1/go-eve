@@ -390,14 +390,14 @@ func (c *client) stop(status string, s evecompute.ServiceFunctions) error {
 }
 
 // Run handler the start of the creation, resetInstance, stop and teardown logic.
-func Run(instanceName, configFile string, createCustomImage, createLab, resetInstance, stop, teardown bool) *status {
+func Run(instanceName, configFile string, createCustomImage, createLab, resetInstance, stop, teardown bool) *Status {
 	c, err := new(instanceName, configFile, createCustomImage)
 	if err != nil {
 		log.Fatalf("Could not create a new goeve client, error: %v", err)
 	}
 
-	c.Status = &status{
-		Firewall: Firewalls{},
+	c.Status = &Status{
+		Firewall: firewalls{},
 	}
 
 	service, err := evecompute.New()
