@@ -111,7 +111,7 @@ func (c Client) RunScript(file string) ([]byte, error) {
 	return out, nil
 }
 
-//Reboot handles the rebooting of the remote compute instance.
+// Reboot handles the rebooting of the remote compute instance.
 func (c Client) Reboot() error {
 	log.Println("Rebooting.")
 
