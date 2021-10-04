@@ -1,4 +1,6 @@
-[![example workflow](https://github.com/amb1s1/go-eve/actions/workflows/go.yml/badge.svg) ![Go Report Card](https://goreportcard.com/badge/amb1s1/go-eve)](https://goreportcard.com/report/amb1s1/go-eve) ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+[![example workflow](https://github.com/amb1s1/go-eve/actions/workflows/go.yml/badge.svg)](https://github.com/amb1s1/go-eve/actions/workflows/go.yml)
+[![Go Report Card](https://goreportcard.com/badge/amb1s1/go-eve)](https://goreportcard.com/report/amb1s1/go-eve) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/amb1s1/go-eve/blob/main/LICENSE)
+
 # go-eve BUILD, PLAY, TEARDOWN, REPEAT
 
 
